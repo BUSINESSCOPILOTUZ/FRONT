@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "User": {
+      "title": "Foydalanuvchi",
+      "description": "Platforma foydalanuvchisi (Admin, Manager, Influencer)",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Foydalanuvchi ismi" },
+        "email": { "type": "string", "format": "email", "description": "Elektron pochta" },
+        "role": { "type": "string", "enum": ["admin", "manager", "influencer"], "description": "Foydalanuvchi roli" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Yaratilgan vaqti" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "ContentPlan": {
+      "title": "Kontent Rejasi",
+      "description": "AI tomonidan yaratilgan kontent rejasi",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Reja nomi" },
+        "rawText": { "type": "string", "description": "Boshlang'ich matn" },
+        "generatedPlan": { "type": "string", "description": "Yaratilgan reja matni" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Holati" },
+        "createdBy": { "type": "string", "description": "Yaratgan foydalanuvchi UID" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Yaratilgan vaqti" }
+      },
+      "required": ["title", "rawText", "status", "createdBy"]
+    },
+    "Lead": {
+      "title": "Lid",
+      "description": "Potentsial mijoz ma'lumotlari",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Mijoz ismi" },
+        "phone": { "type": "string", "description": "Telefon raqami" },
+        "source": { "type": "string", "description": "Manba (Instagram, Telegram, va h.k.)" },
+        "status": { "type": "string", "enum": ["cold", "warm", "hot", "appointment"], "description": "Lid holati" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Yaratilgan vaqti" }
+      },
+      "required": ["phone", "status"]
+    },
+    "Influencer": {
+      "title": "Influencer",
+      "description": "Hamkor influencer ma'lumotlari",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Influencer ismi" },
+        "followers": { "type": "string", "description": "Obunachilar soni" },
+        "promoCode": { "type": "string", "description": "Noyob promokod" },
+        "conversions": { "type": "number", "description": "Konversiyalar soni" },
+        "revenue": { "type": "number", "description": "Keltirilgan daromad" }
+      },
+      "required": ["name", "promoCode"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "Foydalanuvchi profillari"
+    },
+    "/contentPlans/{planId}": {
+      "schema": "ContentPlan",
+      "description": "Kontent rejalari to'plami"
+    },
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Lidlar bazasi"
+    },
+    "/influencers/{influencerId}": {
+      "schema": "Influencer",
+      "description": "Influencerlar ro'yxati"
+    }
+  }
+}

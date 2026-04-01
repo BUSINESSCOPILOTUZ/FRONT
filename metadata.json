@@ -1,0 +1,8 @@
+{
+  "name": "BUSINESS COPILOT - Avtomatlashtirish Platformasi",
+  "description": "O'zbekiston bozori uchun mo'ljallangan marketingni avtomatlashtirish va AI savdo agenti platformasi.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
