@@ -4,6 +4,7 @@ import { Sidebar, AnalyticsCard, LeadRow, cn } from './components/CoreComponents
 import { TrendingUp, Users, DollarSign, MessageSquare, Plus, CheckCircle, Clock, AlertCircle, LogIn, LogOut, Share2, Filter, Download, Search, MoreVertical, Calendar, BarChart3, FileText, Rocket, Calculator, PieChart, Landmark, Send, Sparkles, Globe, Code, Layout, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
+import Markdown from 'react-markdown';
 import { 
   signInWithPopup, 
   GoogleAuthProvider, 
@@ -19,7 +20,10 @@ import {
   orderBy, 
   limit, 
   Timestamp,
-  serverTimestamp
+  serverTimestamp,
+  setDoc,
+  doc,
+  getDoc
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 
@@ -175,9 +179,34 @@ function AppContent() {
   });
   const [showBizPlanForm, setShowBizPlanForm] = useState(false);
 
+  // Advertising Automation State
+  const [adsInput, setAdsInput] = useState('');
+  const [adsPlatform, setAdsPlatform] = useState<'tg' | 'instagram'>('tg');
+  const [adsResult, setAdsResult] = useState<{ creative: string, hooks: string[], ctas: string[] } | null>(null);
+  const [adsLoading, setAdsLoading] = useState(false);
+
+  // Market Analysis State
+  const [marketAnalysisInput, setMarketAnalysisInput] = useState('');
+  const [marketAnalysisResult, setMarketAnalysisResult] = useState<string | null>(null);
+  const [marketAnalysisLoading, setMarketAnalysisLoading] = useState(false);
+
   // Auth Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        // Sync user to Firestore
+        const userRef = doc(db, 'users', u.uid);
+        const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists()) {
+          await setDoc(userRef, {
+            uid: u.uid,
+            name: u.displayName || 'Noma\'lum',
+            email: u.email || '',
+            createdAt: serverTimestamp()
+          });
+        }
+      }
       setUser(u);
       setIsAuthReady(true);
     });
@@ -469,6 +498,66 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
     }
   };
 
+  const handleGenerateAds = async () => {
+    if (!adsInput.trim()) return;
+    setAdsLoading(true);
+    try {
+      const prompt = `
+        Siz professional reklama mutaxassisisiz. Foydalanuvchi uchun ${adsPlatform === 'tg' ? 'Telegram Ads' : 'Instagram Ads'} uchun reklama kampaniyasi elementlarini yarating.
+        
+        Mahsulot/Xizmat tavsifi: ${adsInput}
+        
+        Javobni quyidagi JSON formatida qaytaring (faqat JSON):
+        {
+          "creative": "Reklama uchun vizual yoki matnli kreativ g'oyasi",
+          "hooks": ["Hook 1", "Hook 2", "Hook 3"],
+          "ctas": ["CTA 1", "CTA 2", "CTA 3"]
+        }
+        
+        Javob O'zbek tilida bo'lishi shart.
+      `;
+
+      const response = await genAI.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: { responseMimeType: "application/json" }
+      });
+      
+      const result = JSON.parse(response.text || "{}");
+      setAdsResult(result);
+    } catch (error) {
+      console.error("Ads AI error:", error);
+    } finally {
+      setAdsLoading(false);
+    }
+  };
+
+  const handleMarketAnalysis = async () => {
+    if (!marketAnalysisInput.trim()) return;
+    setMarketAnalysisLoading(true);
+    try {
+      const prompt = `
+        Siz professional bozor tahlilchisisiz. Quyidagi biznes g'oyasi uchun O'zbekiston bozorida raqobatchilar tahlili, bozor hajmi va imkoniyatlar haqida batafsil ma'lumot bering.
+        
+        Biznes g'oyasi: ${marketAnalysisInput}
+        
+        Javobni O'zbek tilida, chiroyli formatlangan (Markdown) holda yozing.
+      `;
+
+      const response = await genAI.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+      });
+      
+      setMarketAnalysisResult(response.text || "Tahlil natijasi topilmadi.");
+    } catch (error) {
+      console.error("Market Analysis AI error:", error);
+      setMarketAnalysisResult("Bozor tahlilida xatolik yuz berdi.");
+    } finally {
+      setMarketAnalysisLoading(false);
+    }
+  };
+
   if (!isAuthReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -521,9 +610,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
       case 'influencers': return 'Influencerlar va Promokodlar';
       case 'analytics': return 'Kengaytirilgan Analitika';
       case 'business': return 'Biznes Boshlash (AI Maslahatchi)';
+      case 'ads': return 'Reklama Avtomatizatsiyasi (AI)';
+      case 'automation': return 'Avtomatizatsiya Sozlamalari';
       default: return 'Platforma';
     }
   };
+
 
   return (
     <div className="app-container flex min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -1201,6 +1293,125 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
               </motion.div>
             )}
 
+            {activeTab === 'ads' && (
+              <motion.div 
+                key="ads"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-8 pb-12"
+              >
+                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-8">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900 tracking-tight">Reklama Avtomatizatsiyasi (AI)</h3>
+                      <p className="text-slate-500">TG Ads va Instagram Ads uchun kreativlar yarating</p>
+                    </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <a 
+                        href="https://adsshop.org/channels" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-6 py-2 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold hover:bg-blue-100 transition-all border border-blue-100 shadow-sm"
+                      >
+                        <Send size={16} />
+                        Telegram Ads
+                      </a>
+                      <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <button 
+                          onClick={() => setAdsPlatform('tg')}
+                          className={cn(
+                            "px-6 py-2 rounded-lg text-sm font-bold transition-all",
+                            adsPlatform === 'tg' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                          )}
+                        >
+                          TG Ads (AI)
+                        </button>
+                        <button 
+                          onClick={() => setAdsPlatform('instagram')}
+                          className={cn(
+                            "px-6 py-2 rounded-lg text-sm font-bold transition-all",
+                            adsPlatform === 'instagram' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                          )}
+                        >
+                          Insta Ads (AI)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Mahsulot yoki xizmat haqida qisqacha</label>
+                    <div className="flex gap-4">
+                      <textarea 
+                        value={adsInput}
+                        onChange={(e) => setAdsInput(e.target.value)}
+                        placeholder="Masalan: Toshkentda yangi ochilgan milliy taomlar restorani uchun reklama..."
+                        className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 min-h-[100px]"
+                      />
+                      <button 
+                        onClick={handleGenerateAds}
+                        disabled={adsLoading || !adsInput.trim()}
+                        className="px-8 bg-orange-500 text-white rounded-2xl font-black hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 disabled:opacity-50 flex flex-col items-center justify-center gap-2"
+                      >
+                        {adsLoading ? (
+                          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Sparkles size={24} />
+                            <span>Yaratish</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {adsResult && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-8 border-t border-slate-50">
+                      <div className="lg:col-span-1 space-y-6">
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                          <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <Layout size={14} /> Kreativ G'oya
+                          </h4>
+                          <p className="text-slate-700 leading-relaxed">{adsResult.creative}</p>
+                        </div>
+                      </div>
+                      <div className="lg:col-span-1 space-y-6">
+                        <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
+                          <h4 className="text-xs font-black text-orange-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <Zap size={14} /> Hook'lar (Diqqatni tortish)
+                          </h4>
+                          <ul className="space-y-3">
+                            {adsResult.hooks.map((hook: string, i: number) => (
+                              <li key={i} className="flex gap-3 text-slate-700 text-sm">
+                                <span className="text-orange-500 font-bold">{i+1}.</span>
+                                {hook}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="lg:col-span-1 space-y-6">
+                        <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                          <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <Send size={14} /> CTA (Harakatga chaqiriq)
+                          </h4>
+                          <ul className="space-y-3">
+                            {adsResult.ctas.map((cta: string, i: number) => (
+                              <li key={i} className="flex gap-3 text-slate-700 text-sm">
+                                <span className="text-blue-500 font-bold">{i+1}.</span>
+                                {cta}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
             {activeTab === 'business' && (
               <motion.div 
                 key="business"
@@ -1347,6 +1558,45 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest mb-1">Taxminiy soliq</p>
                           <p className="text-2xl font-black text-slate-900">{calculateTax().toLocaleString()} so'm</p>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Market Analysis Tool */}
+                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
+                      <div className="flex items-center gap-3 text-purple-500">
+                        <PieChart size={20} />
+                        <h4 className="font-black text-slate-900 uppercase tracking-widest text-xs">Bozor Tahlili (AI)</h4>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Biznes g'oyasi</label>
+                          <input 
+                            type="text" 
+                            placeholder="Masalan: Toshkentda kofe do'koni..."
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                            value={marketAnalysisInput}
+                            onChange={(e) => setMarketAnalysisInput(e.target.value)}
+                          />
+                        </div>
+                        <button 
+                          onClick={handleMarketAnalysis}
+                          disabled={marketAnalysisLoading || !marketAnalysisInput.trim()}
+                          className="w-full py-3 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {marketAnalysisLoading ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <Sparkles size={16} />
+                              <span>Tahlil qilish</span>
+                            </>
+                          )}
+                        </button>
+                        {marketAnalysisResult && (
+                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 max-h-[300px] overflow-y-auto prose prose-sm">
+                            <Markdown>{marketAnalysisResult}</Markdown>
+                          </div>
+                        )}
                       </div>
                     </div>
 
