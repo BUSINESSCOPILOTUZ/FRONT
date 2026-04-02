@@ -155,8 +155,9 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 // --- AI Setup (Backend Proxy) ---
-const API_BASE = "http://localhost:9006/api/ai";
-const CONTENT_API = "http://localhost:9006/api/content-plans";
+// Use deployed API in production
+const API_BASE = "https://apibusinesscopilot.masatov.uz/api/ai";
+const CONTENT_API = "https://apibusinesscopilot.masatov.uz/api/content-plans";
 
 const aiApi = {
   generateContent: async (topic: string) => {
