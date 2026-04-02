@@ -107,7 +107,13 @@ import {
 import { db, handleFirestoreError, OperationType } from "./firebase";
 
 // Auth API — Backend JWT bilan ishlash
-const AUTH_API = "https://apibusinesscopilot.masatov.uz/api/auth";
+// Local dev: localhost:9006, Production: apibusinesscopilot.masatov.uz
+const BACKEND_BASE =
+  window.location.hostname === "localhost"
+    ? "http://localhost:9006"
+    : "https://apibusinesscopilot.masatov.uz";
+
+const AUTH_API = `${BACKEND_BASE}/api/auth`;
 
 import {
   LineChart,
@@ -293,9 +299,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 // --- AI Setup (Backend Proxy) ---
-// Use deployed API in production
-const API_BASE = "https://apibusinesscopilot.masatov.uz/api/ai";
-const CONTENT_API = "https://apibusinesscopilot.masatov.uz/api/content-plans";
+const API_BASE = `${BACKEND_BASE}/api/ai`;
+const CONTENT_API = `${BACKEND_BASE}/api/content-plans`;
 
 const aiApi = {
   generateContent: async (topic: string) => {
@@ -393,7 +398,7 @@ const aiApi = {
 };
 
 // --- Bot API Client ---
-const BOT_API = "https://apibusinesscopilot.masatov.uz/api/bot";
+const BOT_API = `${BACKEND_BASE}/api/bot`;
 
 const botApi = {
   validateToken: async (token: string) => {
@@ -6517,6 +6522,3 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
     </div>
   );
 }
-
-
-

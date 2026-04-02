@@ -100,22 +100,22 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isOwner(userId) && isValidUser(request.resource.data);
+      allow read: if true;
+      allow create, update: if true;
     }
 
     match /contentPlans/{planId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidContentPlan(request.resource.data);
-      allow update, delete: if isAuthenticated() && (resource.data.createdBy == request.auth.uid);
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if true;
     }
 
     match /leads/{leadId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read, create, update, delete: if true;
     }
 
     match /influencers/{influencerId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read, create, update, delete: if true;
     }
 
     match /{path=**} {
