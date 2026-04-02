@@ -42,6 +42,25 @@ import {
   Layout,
   Zap,
   Loader2,
+  Eye,
+  Copy,
+  Trash2,
+  Pencil,
+  ChevronDown,
+  ChevronUp,
+  Hash,
+  Star,
+  Heart,
+  Bookmark,
+  MapPin,
+  BadgeCheck,
+  ExternalLink,
+  Phone,
+  X,
+  SlidersHorizontal,
+  ArrowUpDown,
+  Instagram,
+  Youtube,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Markdown from "react-markdown";
@@ -278,6 +297,15 @@ function AppContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  // Influencer Marketplace State
+  const [infSearchTerm, setInfSearchTerm] = useState("");
+  const [infPlatformFilter, setInfPlatformFilter] = useState("all");
+  const [infNicheFilter, setInfNicheFilter] = useState("all");
+  const [infFollowersFilter, setInfFollowersFilter] = useState("all");
+  const [infSortBy, setInfSortBy] = useState("followers");
+  const [infContactModal, setInfContactModal] = useState<any | null>(null);
+  const [infSaved, setInfSaved] = useState<Set<string>>(new Set());
 
   // Website Creation State
   const [websiteInput, setWebsiteInput] = useState("");
@@ -1271,114 +1299,317 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
               </motion.div>
             )}
 
-            {activeTab === "influencers" && (
+            {activeTab === "influencers" && (() => {
+              // --- Mock Influencer Marketplace Data ---
+              const MOCK_INFLUENCERS = [
+                { id: "m1", name: "Munisa Rizayeva", username: "@munisa_rizayeva", avatar: "https://i.pravatar.cc/300?img=1", platform: ["instagram", "telegram", "youtube"], followers: 5200000, engagement: 4.8, price_per_post: 3500000, niche: "lifestyle", location: "Toshkent", contact: { telegram: "@munisa_agent", phone: "+998 90 123 45 67" }, verified: true, top: true, promoCode: "MUNISA10", conversions: 120, revenue: 15000000 },
+                { id: "m2", name: "Shahzoda", username: "@shahzoda_official", avatar: "https://i.pravatar.cc/300?img=5", platform: ["instagram", "youtube", "tiktok"], followers: 4500000, engagement: 5.2, price_per_post: 4000000, niche: "lifestyle", location: "Toshkent", contact: { telegram: "@shahzoda_pr", agent: "Creative Agency UZ" }, verified: true, top: true, promoCode: "SHAHZODA15", conversions: 85, revenue: 9000000 },
+                { id: "m3", name: "Dilshod Mirzamuratov", username: "@dilshod_tech", avatar: "https://i.pravatar.cc/300?img=12", platform: ["youtube", "telegram"], followers: 890000, engagement: 6.1, price_per_post: 1500000, niche: "tech", location: "Toshkent", contact: { telegram: "@dilshod_dm" }, verified: true, top: false, promoCode: "", conversions: 45, revenue: 3200000 },
+                { id: "m4", name: "Nodira Karimova", username: "@nodira_food", avatar: "https://i.pravatar.cc/300?img=9", platform: ["instagram", "tiktok"], followers: 320000, engagement: 7.3, price_per_post: 800000, niche: "food", location: "Samarqand", contact: { phone: "+998 93 456 78 90" }, verified: false, top: false, promoCode: "", conversions: 30, revenue: 1500000 },
+                { id: "m5", name: "Akbar Rakhimov", username: "@akbar_business", avatar: "https://i.pravatar.cc/300?img=15", platform: ["telegram", "youtube"], followers: 1100000, engagement: 3.9, price_per_post: 2000000, niche: "business", location: "Toshkent", contact: { telegram: "@akbar_biz", agent: "BizReach Agency" }, verified: true, top: false, promoCode: "", conversions: 60, revenue: 5500000 },
+                { id: "m6", name: "Zulfiya Hamidova", username: "@zulfiya_edu", avatar: "https://i.pravatar.cc/300?img=25", platform: ["youtube", "telegram", "instagram"], followers: 750000, engagement: 5.8, price_per_post: 1200000, niche: "education", location: "Buxoro", contact: { telegram: "@zulfiya_contact", phone: "+998 97 111 22 33" }, verified: false, top: false, promoCode: "", conversions: 22, revenue: 1800000 },
+              ];
+
+              // Merge real DB influencers with mock data
+              const dbInfluencers = influencers.map((inf: any) => ({
+                id: inf.id,
+                name: inf.name,
+                username: `@${inf.name.toLowerCase().replace(/\s+/g, '_')}`,
+                avatar: `https://i.pravatar.cc/300?u=${inf.id}`,
+                platform: ["instagram", "telegram"] as string[],
+                followers: typeof inf.followers === 'string' ? parseFloat(inf.followers.replace(/[^0-9.]/g, '')) * (inf.followers.includes('M') ? 1000000 : inf.followers.includes('K') ? 1000 : 1) : (inf.followers || 0),
+                engagement: 4.5,
+                price_per_post: 1500000,
+                niche: "lifestyle",
+                location: "Toshkent",
+                contact: { telegram: `@${inf.name.toLowerCase().replace(/\s+/g, '_')}` },
+                verified: false,
+                top: false,
+                promoCode: inf.promoCode || "",
+                conversions: inf.conversions || 0,
+                revenue: inf.revenue || 0,
+              }));
+
+              const allInfluencers = [
+                ...MOCK_INFLUENCERS,
+                ...dbInfluencers.filter((d: any) => !MOCK_INFLUENCERS.find(m => m.name === d.name)),
+              ];
+
+              // Filter logic
+              let filtered = allInfluencers.filter((inf) => {
+                if (infSearchTerm && !inf.name.toLowerCase().includes(infSearchTerm.toLowerCase()) && !inf.niche.toLowerCase().includes(infSearchTerm.toLowerCase()) && !inf.username.toLowerCase().includes(infSearchTerm.toLowerCase())) return false;
+                if (infPlatformFilter !== "all" && !inf.platform.includes(infPlatformFilter)) return false;
+                if (infNicheFilter !== "all" && inf.niche !== infNicheFilter) return false;
+                if (infFollowersFilter === "10k" && inf.followers < 10000) return false;
+                if (infFollowersFilter === "50k" && inf.followers < 50000) return false;
+                if (infFollowersFilter === "100k" && inf.followers < 100000) return false;
+                if (infFollowersFilter === "1m" && inf.followers < 1000000) return false;
+                return true;
+              });
+              if (infSortBy === "followers") filtered.sort((a, b) => b.followers - a.followers);
+              if (infSortBy === "engagement") filtered.sort((a, b) => b.engagement - a.engagement);
+              if (infSortBy === "revenue") filtered.sort((a, b) => b.revenue - a.revenue);
+
+              const formatFollowers = (n: number) => {
+                if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+                if (n >= 1000) return (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, '') + 'K';
+                return n.toString();
+              };
+
+              const platformIcon = (p: string) => {
+                switch (p) {
+                  case "instagram": return <Instagram size={13} />;
+                  case "telegram": return <Send size={13} />;
+                  case "youtube": return <Youtube size={13} />;
+                  case "tiktok": return <Zap size={13} />;
+                  default: return null;
+                }
+              };
+              const platformColor = (p: string) => {
+                switch (p) {
+                  case "instagram": return "bg-pink-100 text-pink-600";
+                  case "telegram": return "bg-sky-100 text-sky-600";
+                  case "youtube": return "bg-red-100 text-red-600";
+                  case "tiktok": return "bg-slate-100 text-slate-700";
+                  default: return "bg-slate-100 text-slate-600";
+                }
+              };
+              const nicheLabel: Record<string, string> = { food: "Oziq-ovqat", education: "Ta'lim", tech: "Texnologiya", lifestyle: "Lifestyle", business: "Biznes" };
+              const nicheColor: Record<string, string> = { food: "bg-amber-50 text-amber-700", education: "bg-blue-50 text-blue-700", tech: "bg-cyan-50 text-cyan-700", lifestyle: "bg-orange-50 text-orange-700", business: "bg-emerald-50 text-emerald-700" };
+
+              return (
               <motion.div
                 key="influencers"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
               >
-                <div className="flex justify-between items-center bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                {/* ── HEADER ── */}
+                <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h3 className="text-xl font-bold text-slate-800">
-                      Influencerlar va Hamkorlar
-                    </h3>
-                    <p className="text-sm text-slate-500">
-                      Promokodlar orqali sotuvlarni kuzatish
-                    </p>
+                    <h3 className="text-xl font-bold text-slate-800">Influencer Marketplace</h3>
+                    <p className="text-sm text-slate-500">O'zbekistonning eng yaxshi influencerlari bilan hamkorlik qiling</p>
                   </div>
-                  <button
-                    onClick={() => setShowAddInfluencerModal(true)}
-                    className="px-6 py-3 bg-orange-500 text-white rounded-xl font-bold text-sm hover:bg-orange-600 transition-all shadow-lg shadow-orange-200 active:scale-95 flex items-center gap-2"
-                  >
-                    <Plus size={18} />
-                    Yangi Hamkor
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                      <Users size={14} /> {allInfluencers.length} ta influencer
+                    </span>
+                    <button
+                      onClick={() => setShowAddInfluencerModal(true)}
+                      className="flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-orange-200 transition-colors hover:bg-orange-600 active:scale-95"
+                    >
+                      <Plus size={16} /> Yangi Hamkor
+                    </button>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {influencers.map((inf) => (
-                    <div
-                      key={inf.id}
-                      className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-6 hover:shadow-md transition-shadow relative overflow-hidden group"
-                    >
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/5 rounded-bl-full -mr-8 -mt-8 transition-all group-hover:bg-orange-500/10" />
-
-                      <div className="flex justify-between items-start relative">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xl">
-                            {inf.name.charAt(0)}
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-lg text-slate-900">
-                              {inf.name}
-                            </h4>
-                            <div className="flex items-center gap-2 text-xs text-slate-500">
-                              <Users size={12} />
-                              {inf.followers} obunachi
-                            </div>
-                          </div>
-                        </div>
-                        <div className="px-3 py-1 bg-orange-500 text-white rounded-lg font-mono font-black text-xs shadow-sm">
-                          {inf.promoCode}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-50 relative">
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">
-                            Konversiyalar
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <CheckCircle size={14} className="text-green-500" />
-                            <p className="text-xl font-black text-slate-900">
-                              {inf.conversions || 0}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">
-                            Daromad
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <DollarSign size={14} className="text-green-500" />
-                            <p className="text-xl font-black text-green-600">
-                              {(inf.revenue || 0).toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button className="w-full py-2 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors">
-                        Batafsil tahlil
-                      </button>
+                {/* ── FILTER BAR ── */}
+                <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <input
+                        type="text"
+                        placeholder="Ism, niche yoki username bo'yicha qidiring..."
+                        value={infSearchTerm}
+                        onChange={(e) => setInfSearchTerm(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      />
                     </div>
-                  ))}
-                  {influencers.length === 0 && (
-                    <div className="col-span-full py-16 text-center space-y-4 bg-white rounded-3xl border-2 border-dashed border-slate-100">
-                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-300">
-                        <Users size={32} />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-slate-900 font-bold">
-                          Hamkorlar topilmadi
-                        </p>
-                        <p className="text-slate-400 text-sm">
-                          Hali hech qanday influencer qo'shilmagan
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setShowAddInfluencerModal(true)}
-                        className="px-6 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors"
-                      >
-                        Birinchisini qo'shish
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select value={infPlatformFilter} onChange={(e) => setInfPlatformFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="all">Barcha platformalar</option>
+                        <option value="instagram">Instagram</option>
+                        <option value="telegram">Telegram</option>
+                        <option value="youtube">YouTube</option>
+                        <option value="tiktok">TikTok</option>
+                      </select>
+                      <select value={infNicheFilter} onChange={(e) => setInfNicheFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="all">Barcha sohalar</option>
+                        <option value="food">Oziq-ovqat</option>
+                        <option value="education">Ta'lim</option>
+                        <option value="tech">Texnologiya</option>
+                        <option value="lifestyle">Lifestyle</option>
+                        <option value="business">Biznes</option>
+                      </select>
+                      <select value={infFollowersFilter} onChange={(e) => setInfFollowersFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="all">Obunachi soni</option>
+                        <option value="10k">10K+</option>
+                        <option value="50k">50K+</option>
+                        <option value="100k">100K+</option>
+                        <option value="1m">1M+</option>
+                      </select>
+                      <select value={infSortBy} onChange={(e) => setInfSortBy(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="followers">Eng ko'p obunachi</option>
+                        <option value="engagement">Eng faol</option>
+                        <option value="revenue">Eng yuqori daromad</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {(infSearchTerm || infPlatformFilter !== "all" || infNicheFilter !== "all" || infFollowersFilter !== "all") && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium text-slate-400">Filtrlar:</span>
+                      {infSearchTerm && (
+                        <button onClick={() => setInfSearchTerm("")} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200">
+                          "{infSearchTerm}" <X size={12} />
+                        </button>
+                      )}
+                      {infPlatformFilter !== "all" && (
+                        <button onClick={() => setInfPlatformFilter("all")} className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100">
+                          {infPlatformFilter} <X size={12} />
+                        </button>
+                      )}
+                      {infNicheFilter !== "all" && (
+                        <button onClick={() => setInfNicheFilter("all")} className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100">
+                          {nicheLabel[infNicheFilter] || infNicheFilter} <X size={12} />
+                        </button>
+                      )}
+                      {infFollowersFilter !== "all" && (
+                        <button onClick={() => setInfFollowersFilter("all")} className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100">
+                          {infFollowersFilter.toUpperCase()}+ <X size={12} />
+                        </button>
+                      )}
+                      <button onClick={() => { setInfSearchTerm(""); setInfPlatformFilter("all"); setInfNicheFilter("all"); setInfFollowersFilter("all"); }} className="text-xs font-semibold text-red-500 hover:underline">
+                        Tozalash
                       </button>
                     </div>
                   )}
                 </div>
+
+                {/* ── INFLUENCER GRID ── */}
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {filtered.map((inf) => (
+                    <div
+                      key={inf.id}
+                      className="group relative flex flex-col rounded-2xl border border-slate-100 bg-white shadow-sm transition-shadow hover:shadow-md"
+                    >
+                      {/* Top badge */}
+                      {inf.top && (
+                        <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full bg-orange-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                          <Star size={10} fill="currentColor" /> TOP
+                        </div>
+                      )}
+
+                      {/* Header */}
+                      <div className="p-6 pb-4">
+                        <div className="flex items-start gap-4">
+                          <div className="relative shrink-0">
+                            <img
+                              src={inf.avatar}
+                              alt={inf.name}
+                              className="h-14 w-14 rounded-xl border border-slate-100 object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                            {inf.verified && (
+                              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-white">
+                                <BadgeCheck size={12} />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="truncate text-sm font-bold text-slate-900">{inf.name}</h4>
+                            <p className="text-xs text-slate-400">{inf.username}</p>
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {inf.platform.map((p: string) => (
+                                <span key={p} className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold", platformColor(p))}>
+                                  {platformIcon(p)} {p.charAt(0).toUpperCase() + p.slice(1)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="mx-6 grid grid-cols-3 divide-x divide-slate-100 rounded-lg border border-slate-100 bg-slate-50">
+                        <div className="px-3 py-2.5 text-center">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Obunachi</p>
+                          <p className="mt-0.5 text-sm font-bold text-slate-900">{formatFollowers(inf.followers)}</p>
+                        </div>
+                        <div className="px-3 py-2.5 text-center">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Faollik</p>
+                          <p className="mt-0.5 text-sm font-bold text-green-600">{inf.engagement}%</p>
+                        </div>
+                        <div className="px-3 py-2.5 text-center">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Narx/post</p>
+                          <p className="mt-0.5 text-sm font-bold text-slate-900">{(inf.price_per_post / 1000000).toFixed(1)}M</p>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div className="flex flex-1 flex-col gap-3 p-6 pt-4">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold", nicheColor[inf.niche] || "bg-slate-50 text-slate-600")}>
+                            {nicheLabel[inf.niche] || inf.niche}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">
+                            <MapPin size={10} /> {inf.location}
+                          </span>
+                          {inf.promoCode && (
+                            <span className="rounded-full bg-orange-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-orange-600">
+                              {inf.promoCode}
+                            </span>
+                          )}
+                        </div>
+
+                        {inf.revenue > 0 && (
+                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                            <span className="text-slate-500">
+                              <CheckCircle size={12} className="mr-1 inline text-green-500" />{inf.conversions} konversiya
+                            </span>
+                            <span className="font-bold text-green-600">{(inf.revenue / 1000000).toFixed(1)}M so'm</span>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="mt-auto flex items-center gap-2 pt-2">
+                          <button
+                            onClick={() => setInfContactModal(inf)}
+                            className="flex-1 rounded-xl bg-orange-500 py-2.5 text-center text-sm font-bold text-white transition-colors hover:bg-orange-600 active:scale-[0.98]"
+                          >
+                            Bog'lanish
+                          </button>
+                          <button
+                            onClick={() => setInfSaved(prev => { const next = new Set(prev); next.has(inf.id) ? next.delete(inf.id) : next.add(inf.id); return next; })}
+                            className={cn(
+                              "flex h-10 w-10 items-center justify-center rounded-xl border transition-colors",
+                              infSaved.has(inf.id)
+                                ? "border-orange-200 bg-orange-50 text-orange-500"
+                                : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-orange-500"
+                            )}
+                            title="Saqlash"
+                          >
+                            <Bookmark size={16} fill={infSaved.has(inf.id) ? "currentColor" : "none"} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── EMPTY STATE ── */}
+                {filtered.length === 0 && (
+                  <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-100 bg-white py-20 text-center">
+                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-200">
+                      <Users size={32} />
+                    </div>
+                    <p className="text-lg font-bold text-slate-900">Mos influencer topilmadi</p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Filtrlarni o'zgartiring yoki qidiruv so'zini tekshiring
+                    </p>
+                    <button
+                      onClick={() => { setInfSearchTerm(""); setInfPlatformFilter("all"); setInfNicheFilter("all"); setInfFollowersFilter("all"); }}
+                      className="mt-6 flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-800 active:scale-95"
+                    >
+                      <Filter size={16} /> Filtrlarni tozalash
+                    </button>
+                  </div>
+                )}
               </motion.div>
-            )}
+              );
+            })()}
 
             {activeTab === "content" && (
               <motion.div
@@ -1386,336 +1617,456 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="space-y-8"
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="space-y-10"
               >
-                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-orange-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-orange-200">
-                      <Plus size={24} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                        Yangi Kontent Reja
-                      </h3>
-                      <p className="text-sm text-slate-500">
-                        AI yordamida 1 haftalik marketing rejasini tuzing
-                      </p>
-                    </div>
-                  </div>
+                {/* ── HERO / INPUT SECTION ── */}
+                <div className="relative overflow-hidden rounded-3xl border border-slate-200/60 bg-gradient-to-br from-white via-white to-orange-50/50 p-8 md:p-10 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)]">
+                  {/* Decorative blurs */}
+                  <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-gradient-to-br from-orange-400/10 to-amber-300/10 blur-3xl" />
+                  <div className="pointer-events-none absolute -left-12 bottom-0 h-40 w-40 rounded-full bg-gradient-to-tr from-violet-400/5 to-blue-300/5 blur-2xl" />
 
-                  <div className="space-y-4">
-                    <textarea
-                      className="w-full h-40 p-6 bg-slate-50 border border-slate-200 rounded-2xl text-base outline-none focus:ring-2 focus:ring-orange-500 transition-all placeholder:text-slate-300"
-                      placeholder="Masalan: Yangi ochilgan milliy taomlar restorani uchun Instagram va Telegram postlari rejasi..."
-                      value={contentInput}
-                      onChange={(e) => setContentInput(e.target.value)}
-                    />
-                    <button
-                      onClick={handleGeneratePlan}
-                      disabled={loading}
-                      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-[0.98] disabled:opacity-50"
-                    >
-                      {loading ? (
-                        <Clock className="animate-spin" size={24} />
-                      ) : (
-                        <TrendingUp size={24} />
-                      )}
-                      AI Rejani Generatsiya Qilish
-                    </button>
+                  <div className="relative space-y-8">
+                    {/* Header */}
+                    <div className="flex items-start gap-5">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/25 ring-4 ring-orange-500/10">
+                        <Sparkles size={26} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <h3 className="text-2xl font-black tracking-tight text-slate-900">
+                          Yangi Kontent Reja
+                        </h3>
+                        <p className="text-sm font-medium text-slate-500 leading-relaxed">
+                          AI yordamida 1 haftalik professional marketing rejasini bir necha soniyada tuzing
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Input area */}
+                    <div className="space-y-4">
+                      <div className="relative group">
+                        <textarea
+                          className="w-full min-h-[160px] resize-none rounded-2xl border border-slate-200 bg-white/80 p-6 pb-10 text-base text-slate-800 placeholder:text-slate-300 outline-none transition-all duration-200 focus:border-orange-400/50 focus:bg-white focus:shadow-[0_0_0_4px_rgba(251,146,60,0.08)] focus:ring-0"
+                          placeholder="Masalan: Yangi ochilgan milliy taomlar restorani uchun Instagram va Telegram postlari rejasi. Maqsadli auditoriya — 25-40 yosh, oilaviy odamlar..."
+                          value={contentInput}
+                          onChange={(e) => setContentInput(e.target.value)}
+                          maxLength={500}
+                        />
+                        <div className="absolute bottom-3 right-4 flex items-center gap-2">
+                          <span className={cn(
+                            "text-xs font-medium tabular-nums transition-colors",
+                            contentInput.length > 450 ? "text-orange-500" : "text-slate-300"
+                          )}>
+                            {contentInput.length}/500
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="flex items-center gap-1.5 pl-1 text-xs text-slate-400">
+                        <Sparkles size={12} className="text-orange-400" />
+                        Soha, maqsadli auditoriya va platformalarni aniq yozing — AI yanada sifatli reja tuzadi
+                      </p>
+
+                      <button
+                        onClick={handleGeneratePlan}
+                        disabled={loading || !contentInput.trim()}
+                        className={cn(
+                          "group/btn relative w-full overflow-hidden rounded-2xl py-4.5 px-8 text-lg font-black text-white transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
+                          "bg-gradient-to-r from-orange-500 to-amber-500 shadow-lg shadow-orange-500/20",
+                          "hover:shadow-xl hover:shadow-orange-500/25 hover:brightness-105",
+                        )}
+                      >
+                        <span className="relative z-10 flex items-center justify-center gap-3">
+                          {loading ? (
+                            <Loader2 className="animate-spin" size={22} />
+                          ) : (
+                            <Sparkles size={22} className="transition-transform duration-200 group-hover/btn:rotate-12" />
+                          )}
+                          {loading ? "Reja yaratilmoqda..." : "AI Rejani Generatsiya Qilish"}
+                        </span>
+                        <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover/btn:translate-x-full" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
+                {/* ── STATS BAR ── */}
+                {contentPlans.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-xs font-bold text-slate-600">
+                      <FileText size={14} />
+                      Jami: {contentPlans.length}
+                    </span>
+                    {contentPlans.filter(p => p.status === "completed").length > 0 && (
+                      <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-600">
+                        <CheckCircle size={13} />
+                        Tayyor: {contentPlans.filter(p => p.status === "completed").length}
+                      </span>
+                    )}
+                    {contentPlans.filter(p => p.status === "approved").length > 0 && (
+                      <span className="flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-2 text-xs font-bold text-blue-600">
+                        <Calendar size={13} />
+                        Rejalashtirilgan: {contentPlans.filter(p => p.status === "approved").length}
+                      </span>
+                    )}
+                    {contentPlans.filter(p => p.status === "pending").length > 0 && (
+                      <span className="flex items-center gap-1.5 rounded-full bg-orange-50 px-4 py-2 text-xs font-bold text-orange-500">
+                        <Clock size={13} />
+                        Kutilmoqda: {contentPlans.filter(p => p.status === "pending").length}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* ── CONTENT PLANS LIST ── */}
                 <div className="space-y-6">
-                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
-                    <Calendar size={20} className="text-orange-500" />
-                    Mavjud Rejalar
-                  </h3>
-                  <div className="grid grid-cols-1 gap-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="flex items-center gap-3 text-sm font-black uppercase tracking-widest text-slate-400">
+                      <Calendar size={16} />
+                      Mavjud Rejalar
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-5">
                     {contentPlans.map((plan) => (
-                      <div
+                      <motion.div
                         key={plan.id}
-                        className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg transition-all group"
+                        layout
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="group relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition-all duration-200 hover:border-slate-200 hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)]"
                       >
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-3">
-                              <h4 className="font-black text-xl text-slate-900">
-                                {plan.title}
-                              </h4>
-                              <span
-                                className={cn(
-                                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter",
-                                  plan.status === "completed"
-                                    ? "bg-green-100 text-green-600"
+                        {/* Status accent bar */}
+                        <div
+                          className={cn(
+                            "absolute left-0 top-0 h-full w-1 transition-all",
+                            plan.status === "completed"
+                              ? "bg-emerald-500"
+                              : plan.status === "approved"
+                                ? "bg-blue-500"
+                                : plan.status === "rejected"
+                                  ? "bg-red-400"
+                                  : "bg-orange-400",
+                          )}
+                        />
+
+                        <div className="p-6 pl-8 md:p-8 md:pl-10">
+                          {/* Card header */}
+                          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="flex flex-wrap items-center gap-3">
+                                <h4 className="truncate text-lg font-extrabold text-slate-900">
+                                  {plan.title}
+                                </h4>
+                                <span
+                                  className={cn(
+                                    "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide",
+                                    plan.status === "completed"
+                                      ? "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-500/10"
+                                      : plan.status === "approved"
+                                        ? "bg-blue-50 text-blue-600 ring-1 ring-blue-500/10"
+                                        : plan.status === "rejected"
+                                          ? "bg-red-50 text-red-500 ring-1 ring-red-500/10"
+                                          : "bg-orange-50 text-orange-600 ring-1 ring-orange-500/10",
+                                  )}
+                                >
+                                  <span className="h-1.5 w-1.5 rounded-full" style={{
+                                    backgroundColor: plan.status === "completed" ? "#10b981" : plan.status === "approved" ? "#3b82f6" : plan.status === "rejected" ? "#ef4444" : "#f97316"
+                                  }} />
+                                  {plan.status === "completed"
+                                    ? "Tayyor"
                                     : plan.status === "approved"
-                                      ? "bg-blue-100 text-blue-600"
+                                      ? "Rejalashtirilgan"
                                       : plan.status === "rejected"
-                                        ? "bg-red-100 text-red-600"
-                                        : "bg-orange-100 text-orange-600",
-                                )}
-                              >
-                                {plan.status === "completed"
-                                  ? "✅ Tayyor"
-                                  : plan.status === "approved"
-                                    ? "📅 Rejalashtirilgan"
-                                    : plan.status === "rejected"
-                                      ? "❌ Rad etilgan"
-                                      : "⏳ Kutilmoqda"}
-                              </span>
-                            </div>
-                            <p className="text-sm text-slate-400 font-medium">
-                              {plan.rawText}
-                            </p>
-                            {plan.telegramChannelId && (
-                              <p className="text-xs text-blue-500 font-bold">
-                                📢 Telegram: {plan.telegramChannelId}
+                                        ? "Rad etilgan"
+                                        : "Kutilmoqda"}
+                                </span>
+                              </div>
+                              <p className="line-clamp-2 text-sm text-slate-500">
+                                {plan.rawText}
                               </p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
-                              Yaratilgan sana
-                            </p>
-                            <p className="text-sm font-bold text-slate-700">
-                              {plan.createdAt?.toDate
-                                ? plan.createdAt
-                                    .toDate()
-                                    .toLocaleDateString("uz-UZ")
-                                : "Hozir"}
-                            </p>
-                          </div>
-                        </div>
 
-                        {/* Postlar ro'yxati */}
-                        {plan.scheduledPosts &&
-                        plan.scheduledPosts.length > 0 ? (
-                          <div className="space-y-3">
-                            <button
-                              onClick={() =>
-                                setExpandedPlanId(
-                                  expandedPlanId === plan.id ? null : plan.id,
-                                )
-                              }
-                              className="w-full text-left flex items-center justify-between p-4 bg-slate-50 rounded-2xl hover:bg-slate-100 transition-colors"
-                            >
-                              <span className="font-bold text-slate-700">
-                                📋 {plan.scheduledPosts.length} ta post rejasi
-                              </span>
-                              <span className="text-slate-400 text-sm">
-                                {expandedPlanId === plan.id
-                                  ? "▲ Yopish"
-                                  : "▼ Batafsil ko'rish"}
-                              </span>
-                            </button>
+                              {/* Meta row */}
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+                                {plan.scheduledPosts && plan.scheduledPosts.length > 0 && (
+                                  <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                                    <FileText size={13} />
+                                    {plan.scheduledPosts.length} ta post
+                                  </span>
+                                )}
+                                {plan.telegramChannelId && (
+                                  <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-500">
+                                    <Send size={13} />
+                                    {plan.telegramChannelId}
+                                  </span>
+                                )}
+                                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-400">
+                                  <Calendar size={13} />
+                                  {plan.createdAt?.toDate
+                                    ? plan.createdAt.toDate().toLocaleDateString("uz-UZ", { day: "numeric", month: "short", year: "numeric" })
+                                    : "Hozir"}
+                                </span>
+                              </div>
+                            </div>
 
-                            {expandedPlanId === plan.id && (
-                              <div className="space-y-4 mt-4">
-                                {plan.scheduledPosts.map((post, idx) => (
-                                  <div
-                                    key={idx}
-                                    className={cn(
-                                      "p-5 rounded-2xl border transition-all",
-                                      post.status === "sent"
-                                        ? "bg-green-50 border-green-200"
-                                        : post.status === "scheduled"
-                                          ? "bg-blue-50 border-blue-200"
-                                          : post.status === "failed"
-                                            ? "bg-red-50 border-red-200"
-                                            : "bg-slate-50 border-slate-200",
-                                    )}
+                            {/* Action buttons */}
+                            <div className="flex shrink-0 items-center gap-1.5 md:opacity-0 md:transition-opacity md:duration-200 md:group-hover:opacity-100">
+                              <button
+                                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                                title="Tahrirlash"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                              <button
+                                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                                title="Nusxa olish"
+                              >
+                                <Copy size={15} />
+                              </button>
+                              <button
+                                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                                title="O'chirish"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* ── Expand / Posts ── */}
+                          {plan.scheduledPosts && plan.scheduledPosts.length > 0 ? (
+                            <div className="mt-6 space-y-3">
+                              <button
+                                onClick={() =>
+                                  setExpandedPlanId(
+                                    expandedPlanId === plan.id ? null : plan.id,
+                                  )
+                                }
+                                className="flex w-full items-center justify-between rounded-xl bg-slate-50/80 px-5 py-3.5 text-left transition-colors duration-150 hover:bg-slate-100/80"
+                              >
+                                <span className="flex items-center gap-2.5 text-sm font-bold text-slate-700">
+                                  <FileText size={15} className="text-slate-400" />
+                                  {plan.scheduledPosts.length} ta post rejasi
+                                </span>
+                                {expandedPlanId === plan.id ? (
+                                  <ChevronUp size={16} className="text-slate-400" />
+                                ) : (
+                                  <ChevronDown size={16} className="text-slate-400" />
+                                )}
+                              </button>
+
+                              <AnimatePresence>
+                                {expandedPlanId === plan.id && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                                    className="overflow-hidden"
                                   >
-                                    <div className="flex flex-col md:flex-row justify-between items-start gap-3 mb-3">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black text-sm">
-                                          {idx + 1}
-                                        </div>
-                                        <div>
-                                          <h5 className="font-bold text-slate-900">
-                                            {post.title}
-                                          </h5>
-                                          <p className="text-xs text-slate-500">
-                                            {post.day}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        {plan.status === "pending" ? (
-                                          <>
-                                            <input
-                                              type="date"
-                                              value={post.date}
-                                              onChange={(e) =>
-                                                handleUpdatePostSchedule(
-                                                  plan.id,
-                                                  idx,
-                                                  "date",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="px-3 py-1 bg-white rounded-lg text-xs font-bold text-slate-600 border outline-none focus:ring-2 focus:ring-orange-400"
-                                            />
-                                            <input
-                                              type="time"
-                                              value={post.time}
-                                              onChange={(e) =>
-                                                handleUpdatePostSchedule(
-                                                  plan.id,
-                                                  idx,
-                                                  "time",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="px-3 py-1 bg-white rounded-lg text-xs font-bold text-slate-600 border outline-none focus:ring-2 focus:ring-orange-400"
-                                            />
-                                          </>
-                                        ) : (
-                                          <>
-                                            <span className="px-3 py-1 bg-white rounded-lg text-xs font-bold text-slate-600 border">
-                                              📅 {post.date}
-                                            </span>
-                                            <span className="px-3 py-1 bg-white rounded-lg text-xs font-bold text-slate-600 border">
-                                              🕐 {post.time}
-                                            </span>
-                                          </>
-                                        )}
-                                        <span className="px-3 py-1 bg-white rounded-lg text-xs font-bold text-slate-600 border">
-                                          📸 {post.type}
-                                        </span>
-                                        <span
+                                    <div className="space-y-3 pt-2">
+                                      {plan.scheduledPosts.map((post, idx) => (
+                                        <div
+                                          key={idx}
                                           className={cn(
-                                            "px-3 py-1 rounded-lg text-xs font-bold",
+                                            "rounded-xl border p-5 transition-all duration-150",
                                             post.status === "sent"
-                                              ? "bg-green-100 text-green-700"
+                                              ? "border-emerald-200/70 bg-emerald-50/50"
                                               : post.status === "scheduled"
-                                                ? "bg-blue-100 text-blue-700"
+                                                ? "border-blue-200/70 bg-blue-50/50"
                                                 : post.status === "failed"
-                                                  ? "bg-red-100 text-red-700"
-                                                  : "bg-gray-100 text-gray-700",
+                                                  ? "border-red-200/70 bg-red-50/50"
+                                                  : "border-slate-200/70 bg-slate-50/50",
                                           )}
                                         >
-                                          {post.status === "sent"
-                                            ? "✅ Yuborildi"
-                                            : post.status === "scheduled"
-                                              ? "📅 Rejalashtirilgan"
-                                              : post.status === "failed"
-                                                ? "❌ Xato"
-                                                : "⏳ Kutmoqda"}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="p-4 bg-white rounded-xl text-sm text-slate-700 leading-relaxed whitespace-pre-wrap border">
-                                      {post.content}
-                                    </div>
-                                    {post.hashtags &&
-                                      post.hashtags.length > 0 && (
-                                        <div className="mt-2 flex flex-wrap gap-1">
-                                          {post.hashtags.map((tag, i) => (
-                                            <span
-                                              key={i}
-                                              className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium"
-                                            >
-                                              {tag}
-                                            </span>
-                                          ))}
+                                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                            <div className="flex items-start gap-3">
+                                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-xs font-black text-white">
+                                                {idx + 1}
+                                              </div>
+                                              <div>
+                                                <h5 className="font-bold text-slate-900">
+                                                  {post.title}
+                                                </h5>
+                                                <p className="text-xs text-slate-500">
+                                                  {post.day}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              {plan.status === "pending" ? (
+                                                <>
+                                                  <input
+                                                    type="date"
+                                                    value={post.date}
+                                                    onChange={(e) =>
+                                                      handleUpdatePostSchedule(plan.id, idx, "date", e.target.value)
+                                                    }
+                                                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 outline-none transition-all focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
+                                                  />
+                                                  <input
+                                                    type="time"
+                                                    value={post.time}
+                                                    onChange={(e) =>
+                                                      handleUpdatePostSchedule(plan.id, idx, "time", e.target.value)
+                                                    }
+                                                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 outline-none transition-all focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
+                                                  />
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
+                                                    <Calendar size={11} className="text-slate-400" />
+                                                    {post.date}
+                                                  </span>
+                                                  <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
+                                                    <Clock size={11} className="text-slate-400" />
+                                                    {post.time}
+                                                  </span>
+                                                </>
+                                              )}
+                                              <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500">
+                                                {post.type}
+                                              </span>
+                                              <span
+                                                className={cn(
+                                                  "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold",
+                                                  post.status === "sent"
+                                                    ? "bg-emerald-100 text-emerald-700"
+                                                    : post.status === "scheduled"
+                                                      ? "bg-blue-100 text-blue-700"
+                                                      : post.status === "failed"
+                                                        ? "bg-red-100 text-red-600"
+                                                        : "bg-slate-100 text-slate-600",
+                                                )}
+                                              >
+                                                <span className="h-1.5 w-1.5 rounded-full" style={{
+                                                  backgroundColor: post.status === "sent" ? "#10b981" : post.status === "scheduled" ? "#3b82f6" : post.status === "failed" ? "#ef4444" : "#94a3b8"
+                                                }} />
+                                                {post.status === "sent"
+                                                  ? "Yuborildi"
+                                                  : post.status === "scheduled"
+                                                    ? "Rejalashtirilgan"
+                                                    : post.status === "failed"
+                                                      ? "Xato"
+                                                      : "Kutmoqda"}
+                                              </span>
+                                            </div>
+                                          </div>
+
+                                          <div className="mt-3 rounded-lg border border-slate-100 bg-white p-4 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
+                                            {post.content}
+                                          </div>
+
+                                          {post.hashtags && post.hashtags.length > 0 && (
+                                            <div className="mt-3 flex flex-wrap gap-1.5">
+                                              {post.hashtags.map((tag, i) => (
+                                                <span
+                                                  key={i}
+                                                  className="inline-flex items-center gap-1 rounded-md bg-blue-50/80 px-2 py-0.5 text-xs font-medium text-blue-600"
+                                                >
+                                                  <Hash size={10} />
+                                                  {tag.replace(/^#/, "")}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+
+                                          {post.sentAt && (
+                                            <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                                              <CheckCircle size={12} />
+                                              Yuborilgan: {new Date(post.sentAt).toLocaleString("uz-UZ")}
+                                            </p>
+                                          )}
                                         </div>
-                                      )}
-                                    {post.sentAt && (
-                                      <p className="text-xs text-green-600 mt-2 font-medium">
-                                        ✅ Yuborilgan vaqt:{" "}
-                                        {new Date(post.sentAt).toLocaleString(
-                                          "uz-UZ",
-                                        )}
-                                      </p>
+                                      ))}
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          ) : (
+                            <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50/60 p-5 text-sm leading-relaxed text-slate-600 whitespace-pre-wrap transition-all duration-200 group-hover:border-orange-100/60 group-hover:bg-orange-50/20">
+                              {plan.generatedPlan}
+                            </div>
+                          )}
+
+                          {/* ── Approval / Telegram ── */}
+                          <div className="mt-6">
+                            {plan.status === "pending" && (
+                              <div className="space-y-4 rounded-xl border border-slate-100 bg-slate-50/40 p-5">
+                                <div className="flex flex-col gap-3 sm:flex-row">
+                                  <input
+                                    type="text"
+                                    placeholder="Telegram kanal ID (masalan: @kanal_nomi yoki -100xxx)"
+                                    value={telegramChannelId}
+                                    onChange={(e) => setTelegramChannelId(e.target.value)}
+                                    className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all duration-150 placeholder:text-slate-300 focus:border-blue-300 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)]"
+                                  />
+                                  <button
+                                    onClick={() => handleApprovePlan(plan.id)}
+                                    disabled={approvingPlanId === plan.id}
+                                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition-all duration-150 hover:bg-emerald-700 hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+                                  >
+                                    {approvingPlanId === plan.id ? (
+                                      <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                      <Send size={15} />
                                     )}
-                                  </div>
-                                ))}
+                                    Tasdiqlash va Rejalashtirish
+                                  </button>
+                                </div>
+                                <p className="flex items-start gap-1.5 text-xs leading-relaxed text-slate-400">
+                                  <Sparkles size={12} className="mt-0.5 shrink-0 text-orange-400" />
+                                  Botni kanalga admin qilib qo'shing va kanal ID sini kiriting. Tasdiqlangandan so'ng postlar avtomatik chiqariladi.
+                                </p>
+                              </div>
+                            )}
+                            {plan.status === "approved" && (
+                              <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                                <Calendar size={16} className="mt-0.5 shrink-0 text-blue-500" />
+                                <div>
+                                  <p className="text-sm font-bold text-blue-700">
+                                    Reja tasdiqlangan — postlar belgilangan vaqtda avtomatik yuboriladi
+                                  </p>
+                                  <p className="mt-1 text-xs text-blue-500">
+                                    Yuborilgan: {plan.scheduledPosts.filter((p) => p.status === "sent").length}/{plan.scheduledPosts.length} ta post
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                            {plan.status === "completed" && (
+                              <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                                <CheckCircle size={16} className="shrink-0 text-emerald-500" />
+                                <p className="text-sm font-bold text-emerald-700">
+                                  Barcha postlar muvaffaqiyatli yuborildi!
+                                </p>
                               </div>
                             )}
                           </div>
-                        ) : (
-                          <div className="p-6 bg-slate-50 rounded-2xl text-slate-700 leading-relaxed whitespace-pre-wrap border border-slate-100 group-hover:bg-white group-hover:border-orange-100 transition-all">
-                            {plan.generatedPlan}
-                          </div>
-                        )}
-
-                        {/* Tasdiqlash / Telegram kanalga ulash */}
-                        <div className="mt-6">
-                          {plan.status === "pending" && (
-                            <div className="space-y-4">
-                              <div className="flex flex-col sm:flex-row gap-3">
-                                <input
-                                  type="text"
-                                  placeholder="Telegram kanal ID (masalan: @kanal_nomi yoki -100xxx)"
-                                  value={telegramChannelId}
-                                  onChange={(e) =>
-                                    setTelegramChannelId(e.target.value)
-                                  }
-                                  className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                                />
-                                <button
-                                  onClick={() => handleApprovePlan(plan.id)}
-                                  disabled={approvingPlanId === plan.id}
-                                  className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors shadow-lg disabled:opacity-50 flex items-center gap-2"
-                                >
-                                  {approvingPlanId === plan.id ? (
-                                    <Loader2
-                                      size={16}
-                                      className="animate-spin"
-                                    />
-                                  ) : (
-                                    <Send size={16} />
-                                  )}
-                                  Tasdiqlash va Rejalashtirish
-                                </button>
-                              </div>
-                              <p className="text-xs text-slate-400">
-                                💡 Botni kanalga admin qilib qo'shing va kanal
-                                ID sini kiriting. Tasdiqlangandan so'ng postlar
-                                belgilangan vaqtda avtomatik chiqariladi.
-                              </p>
-                            </div>
-                          )}
-                          {plan.status === "approved" && (
-                            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                              <p className="text-sm text-blue-700 font-bold">
-                                📅 Reja tasdiqlangan — postlar belgilangan
-                                vaqtda avtomatik Telegram kanalga chiqariladi
-                              </p>
-                              <p className="text-xs text-blue-500 mt-1">
-                                Yuborilgan:{" "}
-                                {
-                                  plan.scheduledPosts.filter(
-                                    (p) => p.status === "sent",
-                                  ).length
-                                }
-                                /{plan.scheduledPosts.length} ta post
-                              </p>
-                            </div>
-                          )}
-                          {plan.status === "completed" && (
-                            <div className="p-4 bg-green-50 rounded-xl border border-green-100">
-                              <p className="text-sm text-green-700 font-bold">
-                                ✅ Barcha postlar muvaffaqiyatli yuborildi!
-                              </p>
-                            </div>
-                          )}
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
+
+                    {/* ── Empty State ── */}
                     {contentPlans.length === 0 && (
-                      <div className="py-20 text-center space-y-4 bg-white rounded-3xl border-2 border-dashed border-slate-100">
-                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-200">
-                          <FileText size={40} />
+                      <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-200/80 bg-white/50 py-20 text-center">
+                        <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-50 text-slate-300">
+                          <FileText size={36} strokeWidth={1.5} />
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-slate-900 font-black text-lg">
-                            Rejalar mavjud emas
-                          </p>
-                          <p className="text-slate-400 font-medium">
-                            Marketing rejasini tuzish uchun yuqoridagi formadan
-                            foydalaning
-                          </p>
-                        </div>
+                        <p className="text-lg font-extrabold text-slate-800">
+                          Rejalar hali mavjud emas
+                        </p>
+                        <p className="mt-1.5 max-w-xs text-sm text-slate-400">
+                          Marketing rejasini tuzish uchun yuqoridagi formadan foydalaning — AI bir necha soniyada tayyor qiladi
+                        </p>
+                        <button
+                          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-slate-800 active:scale-95"
+                        >
+                          <Plus size={16} />
+                          Birinchi rejani yaratish
+                        </button>
                       </div>
                     )}
                   </div>
@@ -2648,64 +2999,135 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
           </motion.div>
         )}
 
+        {/* Contact Modal */}
+        {infContactModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setInfContactModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-8">
+                <div className="flex items-center gap-4">
+                  <img src={infContactModal.avatar} alt={infContactModal.name} className="h-12 w-12 rounded-xl border border-slate-100 object-cover" referrerPolicy="no-referrer" />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-slate-900">{infContactModal.name}</h3>
+                      {infContactModal.verified && <BadgeCheck size={16} className="text-blue-500" />}
+                    </div>
+                    <p className="text-xs text-slate-400">{infContactModal.username}</p>
+                  </div>
+                </div>
+                <button onClick={() => setInfContactModal(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4 p-8">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Bog'lanish usullari</p>
+
+                {infContactModal.contact?.telegram && (
+                  <a
+                    href={`https://t.me/${infContactModal.contact.telegram.replace('@', '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:bg-sky-50 hover:border-sky-200"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+                      <Send size={18} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-900">Telegram</p>
+                      <p className="text-xs text-slate-500">{infContactModal.contact.telegram}</p>
+                    </div>
+                    <ExternalLink size={16} className="text-slate-400" />
+                  </a>
+                )}
+
+                {infContactModal.contact?.phone && (
+                  <a
+                    href={`tel:${infContactModal.contact.phone}`}
+                    className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:bg-green-50 hover:border-green-200"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-600">
+                      <Phone size={18} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-900">Telefon</p>
+                      <p className="text-xs text-slate-500">{infContactModal.contact.phone}</p>
+                    </div>
+                    <ExternalLink size={16} className="text-slate-400" />
+                  </a>
+                )}
+
+                {infContactModal.contact?.agent && (
+                  <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
+                      <Users size={18} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-900">Agent / Menejer</p>
+                      <p className="text-xs text-slate-500">{infContactModal.contact.agent}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-lg bg-orange-50 p-3">
+                  <p className="text-xs text-orange-600">
+                    <Sparkles size={12} className="mr-1 inline" />
+                    Hamkorlik taklifi yuborishda biznesingiz haqida qisqacha yozing — javob olish ehtimolini oshiradi.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
         {showAddInfluencerModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setShowAddInfluencerModal(false)}
           >
             <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden"
+              className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
-                  Yangi Hamkor Qo'shish
-                </h3>
-                <button
-                  onClick={() => setShowAddInfluencerModal(false)}
-                  className="p-2 hover:bg-white rounded-full transition-colors"
-                >
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">Yangi Hamkor Qo'shish</h3>
+                <button onClick={() => setShowAddInfluencerModal(false)} className="p-2 hover:bg-white rounded-full transition-colors">
                   <Plus size={24} className="rotate-45 text-slate-400" />
                 </button>
               </div>
               <div className="p-8 space-y-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                    Influencer Ismi
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Masalan: Munisa Rizayeva"
-                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Influencer Ismi</label>
+                  <input type="text" placeholder="Masalan: Munisa Rizayeva" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                      Obunachilar
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Masalan: 5M"
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500"
-                    />
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Obunachilar</label>
+                    <input type="text" placeholder="Masalan: 5M" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                      Promokod
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Masalan: MUNISA10"
-                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500"
-                    />
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Promokod</label>
+                    <input type="text" placeholder="Masalan: MUNISA10" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500" />
                   </div>
                 </div>
-                <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl shadow-slate-100 hover:bg-slate-800 transition-all active:scale-95">
+                <button className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-orange-100 hover:bg-orange-600 transition-all active:scale-95">
                   Hamkorni Saqlash
                 </button>
               </div>
