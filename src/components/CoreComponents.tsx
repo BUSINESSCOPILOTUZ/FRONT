@@ -1,6 +1,7 @@
 import { LayoutDashboard, FileText, Users, Share2, TrendingUp, UserCheck, Settings, LogOut, MessageSquare, BarChart3, Rocket, Calculator, PieChart, Landmark, Globe, Megaphone, Zap, Bot } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 /**
  * Utility for Tailwind class merging
@@ -9,22 +10,38 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const menuItems = [
+  { id: 'dashboard', path: '/', icon: LayoutDashboard, label: 'Boshqaruv Paneli' },
+  { id: 'business', path: '/business', icon: Rocket, label: 'Biznes Boshlash' },
+  { id: 'ads', path: '/ads', icon: Megaphone, label: 'Reklama (AI)' },
+  { id: 'content', path: '/content', icon: FileText, label: 'Kontent Markazi' },
+  { id: 'automation', path: '/automation', icon: Zap, label: 'Avtomatizatsiya' },
+  { id: 'influencers', path: '/influencers', icon: UserCheck, label: 'Influencerlar' },
+  { id: 'website', path: '/website', icon: Globe, label: 'Sayt Yaratish' },
+  { id: 'salesbot', path: '/salesbot', icon: Bot, label: 'Sotuvchi Robot' },
+  { id: 'crm', path: '/crm', icon: Users, label: 'Lidlar (CRM)' },
+  { id: 'analytics', path: '/analytics', icon: TrendingUp, label: 'Analitika' },
+];
+
+export const headerTitles: Record<string, string> = {
+  '/': 'Boshqaruv Paneli',
+  '/business': 'Biznes Boshlash (AI Maslahatchi)',
+  '/ads': 'Reklama Avtomatizatsiyasi (AI)',
+  '/content': 'Kontent Markazi',
+  '/automation': 'Avtomatizatsiya Sozlamalari',
+  '/influencers': 'Influencerlar va Promokodlar',
+  '/website': 'Sayt Yaratish (AI)',
+  '/salesbot': 'Sotuvchi Robot (AI)',
+  '/crm': 'Lidlar Boshqaruvi',
+  '/analytics': 'Kengaytirilgan Analitika',
+};
+
 /**
  * Sidebar Component (BEM Style + Tailwind)
  */
-export const Sidebar = ({ activeTab, onTabChange }: { activeTab: string, onTabChange: (tab: string) => void }) => {
-  const menuItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Boshqaruv Paneli' },
-    { id: 'business', icon: Rocket, label: 'Biznes Boshlash' },
-    { id: 'ads', icon: Megaphone, label: 'Reklama (AI)' },
-    { id: 'content', icon: FileText, label: 'Kontent Markazi' },
-    { id: 'automation', icon: Zap, label: 'Avtomatizatsiya' },
-    { id: 'influencers', icon: UserCheck, label: 'Influencerlar' },
-    { id: 'website', icon: Globe, label: 'Sayt Yaratish' },
-    { id: 'salesbot', icon: Bot, label: 'Sotuvchi Robot' },
-    { id: 'crm', icon: Users, label: 'Lidlar (CRM)' },
-    { id: 'analytics', icon: TrendingUp, label: 'Analitika' },
-  ];
+export const Sidebar = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
 
   return (
     <aside className="sidebar w-64 h-screen bg-slate-900 text-white flex flex-col border-r border-slate-800">
@@ -33,19 +50,22 @@ export const Sidebar = ({ activeTab, onTabChange }: { activeTab: string, onTabCh
       </div>
       
       <nav className="sidebar__nav flex-1 px-4 py-6 space-y-2">
-        {menuItems.map((item) => (
-          <div 
-            key={item.id}
-            onClick={() => onTabChange(item.id)}
-            className={cn(
-              "sidebar__item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-all duration-200",
-              activeTab === item.id ? "sidebar__item--active bg-orange-500 text-white" : "hover:bg-slate-800 text-slate-400 hover:text-white"
-            )}
-          >
-            <item.icon size={20} />
-            <span className="font-medium text-sm">{item.label}</span>
-          </div>
-        ))}
+        {menuItems.map((item) => {
+          const isActive = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
+          return (
+            <div 
+              key={item.id}
+              onClick={() => navigate(item.path)}
+              className={cn(
+                "sidebar__item flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-all duration-200",
+                isActive ? "sidebar__item--active bg-orange-500 text-white" : "hover:bg-slate-800 text-slate-400 hover:text-white"
+              )}
+            >
+              <item.icon size={20} />
+              <span className="font-medium text-sm">{item.label}</span>
+            </div>
+          );
+        })}
       </nav>
 
       <div className="sidebar__footer p-6 border-t border-slate-800 space-y-4">
