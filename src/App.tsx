@@ -380,7 +380,11 @@ const aiApi = {
     const res = await fetch(`${API_BASE}/generate-ad-images`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ description, platform, ...(language && { language }) }),
+      body: JSON.stringify({
+        description,
+        platform,
+        ...(language && { language }),
+      }),
     });
     const data = await res.json();
     if (!data.status) throw new Error(data.message);
@@ -633,8 +637,15 @@ function AppContent() {
   const [tgImagesLoading, setTgImagesLoading] = useState(false);
 
   // Meta Ads Extended State
-  const [metaImages, setMetaImages] = useState<{ url: string; ratio: string; label: string }[]>([]);
-  const [metaTexts, setMetaTexts] = useState<{ headline: string; primary: string; cta: string } | null>(null);
+  const [metaImages, setMetaImages] = useState<
+    { url: string; ratio: string; label: string }[]
+  >([]);
+  const [metaTexts, setMetaTexts] = useState<{
+    headline: string;
+    primary: string;
+    cta: string;
+  } | null>(null);
+  const [metaImagesLoading, setMetaImagesLoading] = useState(false);
 
   // Market Analysis State
   const [marketAnalysisInput, setMarketAnalysisInput] = useState("");
@@ -649,16 +660,18 @@ function AppContent() {
     "all" | "instagram" | "telegram" | "google"
   >("all");
 
-<<<<<<< HEAD
   // ─── Sotuvchi Robot State ──────────────────────────────
   const [sbTab, setSbTab] = useState<"brain" | "action" | "stats">("brain");
   const [sbBotToken, setSbBotToken] = useState("");
-  const [sbBotInfo, setSbBotInfo] = useState<{ username?: string; first_name?: string } | null>(null);
+  const [sbBotInfo, setSbBotInfo] = useState<{
+    username?: string;
+    first_name?: string;
+  } | null>(null);
   const [sbTokenValidating, setSbTokenValidating] = useState(false);
   const [sbTokenError, setSbTokenError] = useState("");
   const [sbConnected, setSbConnected] = useState(false);
   const [sbSystemPrompt, setSbSystemPrompt] = useState(
-    "Siz xushmuomala va professional sotuvchisiz. Mijozlarga mahsulotlar haqida batafsil ma'lumot bering, narxlarni ayting va xarid qilishga undang."
+    "Siz xushmuomala va professional sotuvchisiz. Mijozlarga mahsulotlar haqida batafsil ma'lumot bering, narxlarni ayting va xarid qilishga undang.",
   );
   const [sbKnowledgeChunks, setSbKnowledgeChunks] = useState<any[]>([]);
   const [sbKnowledgeText, setSbKnowledgeText] = useState("");
@@ -666,12 +679,12 @@ function AppContent() {
   const [sbRetargetEnabled, setSbRetargetEnabled] = useState(false);
   const [sbRetargetDays, setSbRetargetDays] = useState(7);
   const [sbRetargetMessage, setSbRetargetMessage] = useState(
-    "Assalomu alaykum! Sizni yana ko'rganimizdan xursandmiz. Yangi mahsulotlarimiz bilan tanishing! 🎁"
+    "Assalomu alaykum! Sizni yana ko'rganimizdan xursandmiz. Yangi mahsulotlarimiz bilan tanishing! 🎁",
   );
   const [sbLoyaltyEnabled, setSbLoyaltyEnabled] = useState(false);
   const [sbLoyaltyDiscount, setSbLoyaltyDiscount] = useState(10);
   const [sbLoyaltyMessage, setSbLoyaltyMessage] = useState(
-    "Hurmatli mijozimiz! Sodiq mijozimiz sifatida sizga maxsus chegirma: {discount}% 🎉"
+    "Hurmatli mijozimiz! Sodiq mijozimiz sifatida sizga maxsus chegirma: {discount}% 🎉",
   );
   const [sbAnalytics, setSbAnalytics] = useState<{
     totalInteractions: number;
@@ -687,8 +700,6 @@ function AppContent() {
   const [sbTestLoading, setSbTestLoading] = useState(false);
   const [sbSettingsSaving, setSbSettingsSaving] = useState(false);
 
-  // Auth Listener
-=======
   // ============================================
   // LOGIN FORM STATE
   // ============================================
@@ -706,7 +717,6 @@ function AppContent() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // OTP countdown timer
->>>>>>> a1631d5b5fdd40599cd3d538c27e2d5c76d909cc
   useEffect(() => {
     if (otpCountdown <= 0) return;
     const timer = setTimeout(() => setOtpCountdown(otpCountdown - 1), 1000);
@@ -1416,7 +1426,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
          * If backend doesn't return multi-variant data yet, generate mock variants
          * from the existing creative/hooks response for UI demo.
          */
-        const langLabel = tgAdsLang === "uz" ? "O'zbek" : tgAdsLang === "en" ? "English" : "Русский";
+        const langLabel =
+          tgAdsLang === "uz"
+            ? "O'zbek"
+            : tgAdsLang === "en"
+              ? "English"
+              : "Русский";
         const textVars: string[] = result.textVariants || [
           result.creative?.substring(0, 160) ||
             `${langLabel}: ${adsInput.substring(0, 120)}... 🔥`,
@@ -1425,8 +1440,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
             .map((h: string) => h.substring(0, 160)),
         ];
         // Ensure exactly 5
-        while (textVars.length < 5) textVars.push(`${langLabel} variant ${textVars.length + 1}: ${adsInput.substring(0, 100)}`);
-        setTgTextVariants(textVars.slice(0, 5).map((t: string) => t.substring(0, 160)));
+        while (textVars.length < 5)
+          textVars.push(
+            `${langLabel} variant ${textVars.length + 1}: ${adsInput.substring(0, 100)}`,
+          );
+        setTgTextVariants(
+          textVars.slice(0, 5).map((t: string) => t.substring(0, 160)),
+        );
 
         const imgVars: string[] = result.imageVariants || [
           `https://placehold.co/800x450/f97316/white?text=TG+Ad+1`,
@@ -1439,16 +1459,32 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
          * Meta Ads: Backend should return { creative, hooks, ctas, metaImages?, metaTexts? }
          * Mock multi-format data if not present.
          */
-        setMetaImages(result.metaImages || [
-          { url: "https://placehold.co/600x600/f97316/white?text=1:1+Square", ratio: "1:1", label: "Kvadrat (1:1)" },
-          { url: "https://placehold.co/800x450/1e293b/white?text=16:9+Landscape", ratio: "16:9", label: "Landshaft (16:9)" },
-          { url: "https://placehold.co/450x800/8b5cf6/white?text=9:16+Story", ratio: "9:16", label: "Story (9:16)" },
-        ]);
-        setMetaTexts(result.metaTexts || {
-          headline: result.hooks?.[0] || "Sarlavha matni",
-          primary: result.creative || "Asosiy reklama matni",
-          cta: result.ctas?.[0] || "Batafsil ma'lumot",
-        });
+        setMetaImages(
+          result.metaImages || [
+            {
+              url: "https://placehold.co/600x600/f97316/white?text=1:1+Square",
+              ratio: "1:1",
+              label: "Kvadrat (1:1)",
+            },
+            {
+              url: "https://placehold.co/800x450/1e293b/white?text=16:9+Landscape",
+              ratio: "16:9",
+              label: "Landshaft (16:9)",
+            },
+            {
+              url: "https://placehold.co/450x800/8b5cf6/white?text=9:16+Story",
+              ratio: "9:16",
+              label: "Story (9:16)",
+            },
+          ],
+        );
+        setMetaTexts(
+          result.metaTexts || {
+            headline: result.hooks?.[0] || "Sarlavha matni",
+            primary: result.creative || "Asosiy reklama matni",
+            cta: result.ctas?.[0] || "Batafsil ma'lumot",
+          },
+        );
       }
     } catch (error) {
       console.error("Ads AI error:", error);
@@ -1606,7 +1642,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
         try {
           const settings = await botApi.getSettings(sbUserId);
           if (settings.botToken) setSbBotToken(settings.botToken);
-          if (settings.botUsername) setSbBotInfo({ username: settings.botUsername });
+          if (settings.botUsername)
+            setSbBotInfo({ username: settings.botUsername });
           setSbConnected(settings.isConnected || false);
           setSbSystemPrompt(settings.systemPrompt || sbSystemPrompt);
           setSbRetargetEnabled(settings.retargetEnabled || false);
@@ -4568,7 +4605,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                          <Image size={14} /> Rasm variantlari (16:9) — tanlang (1 ta)
+                          <Image size={14} /> Rasm variantlari (16:9) — tanlang
+                          (1 ta)
                         </h4>
                         {tgSelectedImage !== null && (
                           <span className="text-xs font-bold text-green-600 flex items-center gap-1">
@@ -4601,7 +4639,9 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                               ) : (
                                 <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                                   <div className="w-8 h-8 border-3 border-slate-200 border-t-orange-500 rounded-full animate-spin" />
-                                  <span className="text-[10px] text-slate-400 font-medium">Yaratilmoqda...</span>
+                                  <span className="text-[10px] text-slate-400 font-medium">
+                                    Yaratilmoqda...
+                                  </span>
                                 </div>
                               )}
                               {tgSelectedImage === i && url && (
@@ -4611,8 +4651,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                               )}
                             </div>
                             <div className="p-3 bg-white">
-                              <p className="text-xs font-bold text-slate-500">Rasm {i + 1}</p>
-                              <p className="text-[10px] text-slate-400">16:9 format</p>
+                              <p className="text-xs font-bold text-slate-500">
+                                Rasm {i + 1}
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                16:9 format
+                              </p>
                             </div>
                           </button>
                         ))}
@@ -4773,26 +4817,37 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
                         {metaImages.map((img, i) => (
-                          <div key={i} className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50">
-                            <div className={cn(
-                              "relative bg-slate-200",
-                              img.ratio === "1:1" && "aspect-square",
-                              img.ratio === "16:9" && "aspect-video",
-                              img.ratio === "9:16" && "aspect-[9/16]",
-                            )}>
+                          <div
+                            key={i}
+                            className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50"
+                          >
+                            <div
+                              className={cn(
+                                "relative bg-slate-200",
+                                img.ratio === "1:1" && "aspect-square",
+                                img.ratio === "16:9" && "aspect-video",
+                                img.ratio === "9:16" && "aspect-[9/16]",
+                              )}
+                            >
                               <img
                                 src={img.url}
                                 alt={img.label}
                                 className="w-full h-full object-cover"
                               />
                               <div className="absolute top-2 left-2 px-2 py-1 bg-white/90 backdrop-blur rounded-md">
-                                <span className="text-[10px] font-bold text-slate-600">{img.ratio}</span>
+                                <span className="text-[10px] font-bold text-slate-600">
+                                  {img.ratio}
+                                </span>
                               </div>
                             </div>
                             <div className="p-3 bg-white flex items-center justify-between">
                               <div>
-                                <p className="text-xs font-bold text-slate-700">{img.label}</p>
-                                <p className="text-[10px] text-slate-400">{img.ratio} nisbat</p>
+                                <p className="text-xs font-bold text-slate-700">
+                                  {img.label}
+                                </p>
+                                <p className="text-[10px] text-slate-400">
+                                  {img.ratio} nisbat
+                                </p>
                               </div>
                               <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
                                 <Check size={12} className="text-green-600" />
@@ -4803,24 +4858,30 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       </div>
                       <p className="text-xs text-slate-400 flex items-center gap-1.5">
                         <Check size={12} className="text-green-500" />
-                        Barcha formatlar avtomatik tanlangan — tayyor eksport qilishga
+                        Barcha formatlar avtomatik tanlangan — tayyor eksport
+                        qilishga
                       </p>
                     </div>
 
                     {/* Export Summary */}
-                    <div className={cn(
-                      "p-5 rounded-2xl border flex items-center justify-between flex-wrap gap-4",
-                      !metaImagesLoading && metaImages.every(img => img.url)
-                        ? "bg-green-50 border-green-200"
-                        : "bg-slate-50 border-slate-100",
-                    )}>
+                    <div
+                      className={cn(
+                        "p-5 rounded-2xl border flex items-center justify-between flex-wrap gap-4",
+                        !metaImagesLoading && metaImages.every((img) => img.url)
+                          ? "bg-green-50 border-green-200"
+                          : "bg-slate-50 border-slate-100",
+                      )}
+                    >
                       <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center",
-                          !metaImagesLoading && metaImages.every(img => img.url)
-                            ? "bg-green-500"
-                            : "bg-slate-300",
-                        )}>
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center",
+                            !metaImagesLoading &&
+                              metaImages.every((img) => img.url)
+                              ? "bg-green-500"
+                              : "bg-slate-300",
+                          )}
+                        >
                           {metaImagesLoading ? (
                             <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                           ) : (
@@ -4828,12 +4889,20 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           )}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 text-sm">Meta Ads to'plami tayyor</p>
-                          <p className="text-xs text-slate-500">3 rasm formati + 3 matn turi — to'liq kreativ to'plam</p>
+                          <p className="font-bold text-slate-900 text-sm">
+                            Meta Ads to'plami tayyor
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            3 rasm formati + 3 matn turi — to'liq kreativ
+                            to'plam
+                          </p>
                         </div>
                       </div>
                       <button
-                        disabled={metaImagesLoading || !metaImages.every(img => img.url)}
+                        disabled={
+                          metaImagesLoading ||
+                          !metaImages.every((img) => img.url)
+                        }
                         className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Download size={16} />
@@ -4862,8 +4931,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       <Bot size={32} className="text-orange-400" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-black tracking-tight">Sotuvchi Robot</h2>
-                      <p className="text-sm text-white/60 mt-1">AI bilan ishlaydigan Telegram savdo boti — o'qiting, sozlang, natijalarni kuzating</p>
+                      <h2 className="text-2xl font-black tracking-tight">
+                        Sotuvchi Robot
+                      </h2>
+                      <p className="text-sm text-white/60 mt-1">
+                        AI bilan ishlaydigan Telegram savdo boti — o'qiting,
+                        sozlang, natijalarni kuzating
+                      </p>
                     </div>
                     <div className="ml-auto flex items-center gap-2">
                       {sbConnected ? (
@@ -4882,9 +4956,21 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                 {/* ── Sub-tabs ── */}
                 <div className="flex gap-2 bg-white rounded-2xl border border-slate-100 p-1.5">
                   {[
-                    { id: "brain" as const, icon: Brain, label: "Botni O'qitish" },
-                    { id: "action" as const, icon: Zap, label: "Avtomatik Sotish" },
-                    { id: "stats" as const, icon: BarChart3, label: "Statistika" },
+                    {
+                      id: "brain" as const,
+                      icon: Brain,
+                      label: "Botni O'qitish",
+                    },
+                    {
+                      id: "action" as const,
+                      icon: Zap,
+                      label: "Avtomatik Sotish",
+                    },
+                    {
+                      id: "stats" as const,
+                      icon: BarChart3,
+                      label: "Statistika",
+                    },
                   ].map((t) => (
                     <button
                       key={t.id}
@@ -4893,7 +4979,7 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all",
                         sbTab === t.id
                           ? "bg-orange-500 text-white shadow-lg shadow-orange-200"
-                          : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                          : "text-slate-500 hover:text-slate-700 hover:bg-slate-50",
                       )}
                     >
                       <t.icon size={16} />
@@ -4908,10 +4994,16 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     {/* Token Connection */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-orange-50 rounded-xl"><Shield size={18} className="text-orange-500" /></div>
+                        <div className="p-2.5 bg-orange-50 rounded-xl">
+                          <Shield size={18} className="text-orange-500" />
+                        </div>
                         <div>
-                          <h3 className="text-lg font-black text-slate-900">Bot Ulanishi</h3>
-                          <p className="text-xs text-slate-400">Telegram @BotFather dan olingan tokenni kiriting</p>
+                          <h3 className="text-lg font-black text-slate-900">
+                            Bot Ulanishi
+                          </h3>
+                          <p className="text-xs text-slate-400">
+                            Telegram @BotFather dan olingan tokenni kiriting
+                          </p>
                         </div>
                       </div>
 
@@ -4922,8 +5014,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                               <Bot size={20} className="text-green-600" />
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-green-800">@{sbBotInfo.username || "bot"}</p>
-                              <p className="text-xs text-green-600">Muvaffaqiyatli ulangan ✓</p>
+                              <p className="text-sm font-bold text-green-800">
+                                @{sbBotInfo.username || "bot"}
+                              </p>
+                              <p className="text-xs text-green-600">
+                                Muvaffaqiyatli ulangan ✓
+                              </p>
                             </div>
                           </div>
                           <button
@@ -4940,7 +5036,10 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                               type="password"
                               placeholder="123456789:ABCdefGHIjklMNO..."
                               value={sbBotToken}
-                              onChange={(e) => { setSbBotToken(e.target.value); setSbTokenError(""); }}
+                              onChange={(e) => {
+                                setSbBotToken(e.target.value);
+                                setSbTokenError("");
+                              }}
                               className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:border-orange-300 focus:ring-2 focus:ring-orange-100 outline-none transition-all"
                             />
                             <button
@@ -4948,7 +5047,11 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                               disabled={sbTokenValidating}
                               className="px-6 py-3 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center gap-2"
                             >
-                              {sbTokenValidating ? <Loader2 size={14} className="animate-spin" /> : <Wifi size={14} />}
+                              {sbTokenValidating ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <Wifi size={14} />
+                              )}
                               Tekshirish
                             </button>
                           </div>
@@ -4964,19 +5067,33 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     {/* Knowledge Base */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-blue-50 rounded-xl"><Brain size={18} className="text-blue-500" /></div>
+                        <div className="p-2.5 bg-blue-50 rounded-xl">
+                          <Brain size={18} className="text-blue-500" />
+                        </div>
                         <div>
-                          <h3 className="text-lg font-black text-slate-900">Bilimlar Bazasi (RAG)</h3>
-                          <p className="text-xs text-slate-400">Mahsulotlar, narxlar va biznes haqida ma'lumot yuklang</p>
+                          <h3 className="text-lg font-black text-slate-900">
+                            Bilimlar Bazasi (RAG)
+                          </h3>
+                          <p className="text-xs text-slate-400">
+                            Mahsulotlar, narxlar va biznes haqida ma'lumot
+                            yuklang
+                          </p>
                         </div>
                       </div>
 
                       {/* Upload File */}
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <label className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/30 cursor-pointer transition-all group">
-                          <Upload size={24} className="text-slate-400 group-hover:text-orange-500 transition-colors mb-2" />
-                          <span className="text-sm font-bold text-slate-600 group-hover:text-orange-600">Fayl yuklash</span>
-                          <span className="text-[10px] text-slate-400 mt-1">PDF, DOCX, TXT — 10MB gacha</span>
+                          <Upload
+                            size={24}
+                            className="text-slate-400 group-hover:text-orange-500 transition-colors mb-2"
+                          />
+                          <span className="text-sm font-bold text-slate-600 group-hover:text-orange-600">
+                            Fayl yuklash
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-1">
+                            PDF, DOCX, TXT — 10MB gacha
+                          </span>
                           <input
                             type="file"
                             className="absolute inset-0 opacity-0 cursor-pointer"
@@ -4986,7 +5103,10 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           />
                           {sbKnowledgeUploading && (
                             <div className="absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center">
-                              <Loader2 size={24} className="animate-spin text-orange-500" />
+                              <Loader2
+                                size={24}
+                                className="animate-spin text-orange-500"
+                              />
                             </div>
                           )}
                         </label>
@@ -5001,7 +5121,9 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           />
                           <button
                             onClick={handleSbUploadText}
-                            disabled={sbKnowledgeUploading || !sbKnowledgeText.trim()}
+                            disabled={
+                              sbKnowledgeUploading || !sbKnowledgeText.trim()
+                            }
                             className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                           >
                             <Plus size={14} /> Matn qo'shish
@@ -5013,7 +5135,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       {sbKnowledgeChunks.length > 0 && (
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                            Yuklangan ma'lumotlar ({sbKnowledgeChunks.length} bo'lak)
+                            Yuklangan ma'lumotlar ({sbKnowledgeChunks.length}{" "}
+                            bo'lak)
                           </p>
                           {sbKnowledgeChunks.map((chunk: any) => (
                             <div
@@ -5022,9 +5145,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                             >
                               <div className="flex-1 min-w-0">
                                 {chunk.fileName && (
-                                  <span className="text-[10px] font-bold text-blue-500 uppercase">{chunk.fileName}</span>
+                                  <span className="text-[10px] font-bold text-blue-500 uppercase">
+                                    {chunk.fileName}
+                                  </span>
                                 )}
-                                <p className="text-xs text-slate-600 truncate mt-0.5">{chunk.content.slice(0, 120)}...</p>
+                                <p className="text-xs text-slate-600 truncate mt-0.5">
+                                  {chunk.content.slice(0, 120)}...
+                                </p>
                               </div>
                               <button
                                 onClick={() => handleSbDeleteChunk(chunk._id)}
@@ -5041,10 +5168,19 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     {/* System Prompt Editor */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-purple-50 rounded-xl"><MessageSquare size={18} className="text-purple-500" /></div>
+                        <div className="p-2.5 bg-purple-50 rounded-xl">
+                          <MessageSquare
+                            size={18}
+                            className="text-purple-500"
+                          />
+                        </div>
                         <div>
-                          <h3 className="text-lg font-black text-slate-900">Bot Shaxsiyati</h3>
-                          <p className="text-xs text-slate-400">Bot qanday muomala qilishi kerakligini belgilang</p>
+                          <h3 className="text-lg font-black text-slate-900">
+                            Bot Shaxsiyati
+                          </h3>
+                          <p className="text-xs text-slate-400">
+                            Bot qanday muomala qilishi kerakligini belgilang
+                          </p>
                         </div>
                       </div>
                       <textarea
@@ -5059,7 +5195,11 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         disabled={sbSettingsSaving}
                         className="px-6 py-3 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center gap-2"
                       >
-                        {sbSettingsSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        {sbSettingsSaving ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Check size={14} />
+                        )}
                         Saqlash
                       </button>
                     </div>
@@ -5067,10 +5207,17 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     {/* Test Chat */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
                       <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-green-50 rounded-xl"><Send size={18} className="text-green-500" /></div>
+                        <div className="p-2.5 bg-green-50 rounded-xl">
+                          <Send size={18} className="text-green-500" />
+                        </div>
                         <div>
-                          <h3 className="text-lg font-black text-slate-900">Test Suhbat</h3>
-                          <p className="text-xs text-slate-400">Botni sinab ko'ring — bilimlar bazasi asosida javob beradi</p>
+                          <h3 className="text-lg font-black text-slate-900">
+                            Test Suhbat
+                          </h3>
+                          <p className="text-xs text-slate-400">
+                            Botni sinab ko'ring — bilimlar bazasi asosida javob
+                            beradi
+                          </p>
                         </div>
                       </div>
                       <div className="flex gap-3">
@@ -5079,7 +5226,9 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           placeholder="Masalan: Narxlaringiz qancha?"
                           value={sbTestMessage}
                           onChange={(e) => setSbTestMessage(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && handleSbTestChat()}
+                          onKeyDown={(e) =>
+                            e.key === "Enter" && handleSbTestChat()
+                          }
                           className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:border-orange-300 focus:ring-2 focus:ring-orange-100 outline-none"
                         />
                         <button
@@ -5087,14 +5236,22 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           disabled={sbTestLoading || !sbTestMessage.trim()}
                           className="px-6 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center gap-2"
                         >
-                          {sbTestLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                          {sbTestLoading ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Send size={14} />
+                          )}
                           Yuborish
                         </button>
                       </div>
                       {sbTestResponse && (
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                          <p className="text-[10px] font-bold text-orange-500 uppercase mb-2">Bot javobi:</p>
-                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{sbTestResponse}</p>
+                          <p className="text-[10px] font-bold text-orange-500 uppercase mb-2">
+                            Bot javobi:
+                          </p>
+                          <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                            {sbTestResponse}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -5108,47 +5265,71 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="p-2.5 bg-blue-50 rounded-xl"><RefreshCw size={18} className="text-blue-500" /></div>
+                          <div className="p-2.5 bg-blue-50 rounded-xl">
+                            <RefreshCw size={18} className="text-blue-500" />
+                          </div>
                           <div>
-                            <h3 className="text-lg font-black text-slate-900">Qayta Bog'lanish (Retargeting)</h3>
-                            <p className="text-xs text-slate-400">Xarid qilmagan mijozlarga avtomatik xabar yuborish</p>
+                            <h3 className="text-lg font-black text-slate-900">
+                              Qayta Bog'lanish (Retargeting)
+                            </h3>
+                            <p className="text-xs text-slate-400">
+                              Xarid qilmagan mijozlarga avtomatik xabar yuborish
+                            </p>
                           </div>
                         </div>
                         <button
-                          onClick={() => setSbRetargetEnabled(!sbRetargetEnabled)}
+                          onClick={() =>
+                            setSbRetargetEnabled(!sbRetargetEnabled)
+                          }
                           className={cn(
                             "relative w-12 h-7 rounded-full transition-colors",
-                            sbRetargetEnabled ? "bg-orange-500" : "bg-slate-200"
+                            sbRetargetEnabled
+                              ? "bg-orange-500"
+                              : "bg-slate-200",
                           )}
                         >
-                          <div className={cn(
-                            "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                            sbRetargetEnabled ? "left-6" : "left-1"
-                          )} />
+                          <div
+                            className={cn(
+                              "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                              sbRetargetEnabled ? "left-6" : "left-1",
+                            )}
+                          />
                         </button>
                       </div>
 
                       {sbRetargetEnabled && (
                         <div className="space-y-4 pl-14">
                           <div className="flex items-center gap-4">
-                            <label className="text-sm font-bold text-slate-600 whitespace-nowrap">Kutish muddati:</label>
+                            <label className="text-sm font-bold text-slate-600 whitespace-nowrap">
+                              Kutish muddati:
+                            </label>
                             <div className="flex items-center gap-2">
                               <input
                                 type="number"
                                 min={1}
                                 max={90}
                                 value={sbRetargetDays}
-                                onChange={(e) => setSbRetargetDays(parseInt(e.target.value) || 7)}
+                                onChange={(e) =>
+                                  setSbRetargetDays(
+                                    parseInt(e.target.value) || 7,
+                                  )
+                                }
                                 className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-center font-bold"
                               />
-                              <span className="text-sm text-slate-500">kun</span>
+                              <span className="text-sm text-slate-500">
+                                kun
+                              </span>
                             </div>
                           </div>
                           <div>
-                            <label className="text-sm font-bold text-slate-600 block mb-2">Xabar matni:</label>
+                            <label className="text-sm font-bold text-slate-600 block mb-2">
+                              Xabar matni:
+                            </label>
                             <textarea
                               value={sbRetargetMessage}
-                              onChange={(e) => setSbRetargetMessage(e.target.value)}
+                              onChange={(e) =>
+                                setSbRetargetMessage(e.target.value)
+                              }
                               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none"
                               rows={3}
                             />
@@ -5161,51 +5342,73 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="p-2.5 bg-amber-50 rounded-xl"><Gift size={18} className="text-amber-500" /></div>
+                          <div className="p-2.5 bg-amber-50 rounded-xl">
+                            <Gift size={18} className="text-amber-500" />
+                          </div>
                           <div>
-                            <h3 className="text-lg font-black text-slate-900">Sodiq Mijozlar Dasturi</h3>
-                            <p className="text-xs text-slate-400">Eng faol 10% mijozlarga avtomatik chegirma kod yuborish</p>
+                            <h3 className="text-lg font-black text-slate-900">
+                              Sodiq Mijozlar Dasturi
+                            </h3>
+                            <p className="text-xs text-slate-400">
+                              Eng faol 10% mijozlarga avtomatik chegirma kod
+                              yuborish
+                            </p>
                           </div>
                         </div>
                         <button
                           onClick={() => setSbLoyaltyEnabled(!sbLoyaltyEnabled)}
                           className={cn(
                             "relative w-12 h-7 rounded-full transition-colors",
-                            sbLoyaltyEnabled ? "bg-orange-500" : "bg-slate-200"
+                            sbLoyaltyEnabled ? "bg-orange-500" : "bg-slate-200",
                           )}
                         >
-                          <div className={cn(
-                            "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
-                            sbLoyaltyEnabled ? "left-6" : "left-1"
-                          )} />
+                          <div
+                            className={cn(
+                              "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                              sbLoyaltyEnabled ? "left-6" : "left-1",
+                            )}
+                          />
                         </button>
                       </div>
 
                       {sbLoyaltyEnabled && (
                         <div className="space-y-4 pl-14">
                           <div className="flex items-center gap-4">
-                            <label className="text-sm font-bold text-slate-600 whitespace-nowrap">Chegirma foizi:</label>
+                            <label className="text-sm font-bold text-slate-600 whitespace-nowrap">
+                              Chegirma foizi:
+                            </label>
                             <div className="flex items-center gap-2">
                               <input
                                 type="number"
                                 min={1}
                                 max={50}
                                 value={sbLoyaltyDiscount}
-                                onChange={(e) => setSbLoyaltyDiscount(parseInt(e.target.value) || 10)}
+                                onChange={(e) =>
+                                  setSbLoyaltyDiscount(
+                                    parseInt(e.target.value) || 10,
+                                  )
+                                }
                                 className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-center font-bold"
                               />
                               <span className="text-sm text-slate-500">%</span>
                             </div>
                           </div>
                           <div>
-                            <label className="text-sm font-bold text-slate-600 block mb-2">Xabar matni:</label>
+                            <label className="text-sm font-bold text-slate-600 block mb-2">
+                              Xabar matni:
+                            </label>
                             <textarea
                               value={sbLoyaltyMessage}
-                              onChange={(e) => setSbLoyaltyMessage(e.target.value)}
+                              onChange={(e) =>
+                                setSbLoyaltyMessage(e.target.value)
+                              }
                               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none"
                               rows={3}
                             />
-                            <p className="text-[10px] text-slate-400 mt-1">{"{discount}"} — chegirma foizi avtomatik qo'yiladi</p>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              {"{discount}"} — chegirma foizi avtomatik
+                              qo'yiladi
+                            </p>
                           </div>
                         </div>
                       )}
@@ -5214,22 +5417,51 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     {/* Smart FAQ */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2.5 bg-green-50 rounded-xl"><MessageSquare size={18} className="text-green-500" /></div>
+                        <div className="p-2.5 bg-green-50 rounded-xl">
+                          <MessageSquare size={18} className="text-green-500" />
+                        </div>
                         <div>
-                          <h3 className="text-lg font-black text-slate-900">Aqlli Javob Berish</h3>
-                          <p className="text-xs text-slate-400">Bot bilimlar bazasi asosida FAQ savollarga javob beradi</p>
+                          <h3 className="text-lg font-black text-slate-900">
+                            Aqlli Javob Berish
+                          </h3>
+                          <p className="text-xs text-slate-400">
+                            Bot bilimlar bazasi asosida FAQ savollarga javob
+                            beradi
+                          </p>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         {[
-                          { icon: Brain, title: "RAG Qidiruv", desc: "Bilimlar bazasidan kontekst topadi" },
-                          { icon: MessageSquare, title: "AI Javob", desc: "GPT-4o-mini bilan javob generatsiya" },
-                          { icon: Activity, title: "Logga Yozish", desc: "Har bir suhbatni statistikada saqlaydi" },
+                          {
+                            icon: Brain,
+                            title: "RAG Qidiruv",
+                            desc: "Bilimlar bazasidan kontekst topadi",
+                          },
+                          {
+                            icon: MessageSquare,
+                            title: "AI Javob",
+                            desc: "GPT-4o-mini bilan javob generatsiya",
+                          },
+                          {
+                            icon: Activity,
+                            title: "Logga Yozish",
+                            desc: "Har bir suhbatni statistikada saqlaydi",
+                          },
                         ].map((item, i) => (
-                          <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                            <item.icon size={18} className="text-slate-500 mb-2" />
-                            <p className="text-sm font-bold text-slate-800">{item.title}</p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">{item.desc}</p>
+                          <div
+                            key={i}
+                            className="p-4 bg-slate-50 rounded-xl border border-slate-100"
+                          >
+                            <item.icon
+                              size={18}
+                              className="text-slate-500 mb-2"
+                            />
+                            <p className="text-sm font-bold text-slate-800">
+                              {item.title}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              {item.desc}
+                            </p>
                           </div>
                         ))}
                       </div>
@@ -5241,7 +5473,11 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       disabled={sbSettingsSaving}
                       className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-orange-100 hover:bg-orange-600 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
                     >
-                      {sbSettingsSaving ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                      {sbSettingsSaving ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        <Check size={20} />
+                      )}
                       Barcha Sozlamalarni Saqlash
                     </button>
                   </div>
@@ -5263,7 +5499,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           label: "Qayta Bog'lanishlar",
                           value: sbAnalytics?.retargets || 0,
                           icon: RefreshCw,
-                          color: "bg-orange-50 text-orange-500 border-orange-100",
+                          color:
+                            "bg-orange-50 text-orange-500 border-orange-100",
                         },
                         {
                           label: "Jami Suhbatlar",
@@ -5275,19 +5512,26 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           label: "Muvaffaqiyat",
                           value: `${sbAnalytics?.conversionRate || 0}%`,
                           icon: Target,
-                          color: "bg-purple-50 text-purple-500 border-purple-100",
+                          color:
+                            "bg-purple-50 text-purple-500 border-purple-100",
                         },
                       ].map((kpi, i) => (
                         <div
                           key={i}
                           className={`p-5 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow`}
                         >
-                          <div className={`inline-flex p-2.5 rounded-xl ${kpi.color} border mb-3`}>
+                          <div
+                            className={`inline-flex p-2.5 rounded-xl ${kpi.color} border mb-3`}
+                          >
                             <kpi.icon size={18} />
                           </div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{kpi.label}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            {kpi.label}
+                          </p>
                           <p className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
-                            {typeof kpi.value === "number" ? formatNumber(kpi.value) : kpi.value}
+                            {typeof kpi.value === "number"
+                              ? formatNumber(kpi.value)
+                              : kpi.value}
                           </p>
                         </div>
                       ))}
@@ -5297,10 +5541,16 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                       <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-3">
-                          <div className="p-2.5 bg-slate-50 rounded-xl"><Activity size={18} className="text-slate-500" /></div>
+                          <div className="p-2.5 bg-slate-50 rounded-xl">
+                            <Activity size={18} className="text-slate-500" />
+                          </div>
                           <div>
-                            <h3 className="text-lg font-black text-slate-900">Faollik Grafigi</h3>
-                            <p className="text-xs text-slate-400">Oxirgi 7 kun ichida bot suhbatlari</p>
+                            <h3 className="text-lg font-black text-slate-900">
+                              Faollik Grafigi
+                            </h3>
+                            <p className="text-xs text-slate-400">
+                              Oxirgi 7 kun ichida bot suhbatlari
+                            </p>
                           </div>
                         </div>
                         <button
@@ -5308,20 +5558,46 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           disabled={sbStatsLoading}
                           className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors disabled:opacity-50 flex items-center gap-2"
                         >
-                          <RefreshCw size={14} className={sbStatsLoading ? "animate-spin" : ""} /> Yangilash
+                          <RefreshCw
+                            size={14}
+                            className={sbStatsLoading ? "animate-spin" : ""}
+                          />{" "}
+                          Yangilash
                         </button>
                       </div>
-                      {sbAnalytics?.activity && sbAnalytics.activity.length > 0 ? (
+                      {sbAnalytics?.activity &&
+                      sbAnalytics.activity.length > 0 ? (
                         <ResponsiveContainer width="100%" height={240}>
                           <AreaChart data={sbAnalytics.activity}>
                             <defs>
-                              <linearGradient id="sbGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#f97316" stopOpacity={0.2} />
-                                <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                              <linearGradient
+                                id="sbGrad"
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                              >
+                                <stop
+                                  offset="5%"
+                                  stopColor="#f97316"
+                                  stopOpacity={0.2}
+                                />
+                                <stop
+                                  offset="95%"
+                                  stopColor="#f97316"
+                                  stopOpacity={0}
+                                />
                               </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                            <XAxis dataKey="day" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              stroke="#f1f5f9"
+                            />
+                            <XAxis
+                              dataKey="day"
+                              tick={{ fontSize: 12 }}
+                              stroke="#94a3b8"
+                            />
                             <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
                             <Tooltip
                               contentStyle={{
@@ -5347,8 +5623,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                             <Loader2 size={32} className="animate-spin" />
                           ) : (
                             <div className="text-center space-y-2">
-                              <BarChart3 size={40} className="mx-auto text-slate-200" />
-                              <p className="text-sm text-slate-400">Hozircha ma'lumot yo'q</p>
+                              <BarChart3
+                                size={40}
+                                className="mx-auto text-slate-200"
+                              />
+                              <p className="text-sm text-slate-400">
+                                Hozircha ma'lumot yo'q
+                              </p>
                             </div>
                           )}
                         </div>
@@ -5358,45 +5639,74 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     {/* Live Feed */}
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2.5 bg-red-50 rounded-xl"><Radio size={18} className="text-red-500" /></div>
+                        <div className="p-2.5 bg-red-50 rounded-xl">
+                          <Radio size={18} className="text-red-500" />
+                        </div>
                         <div>
-                          <h3 className="text-lg font-black text-slate-900">Jonli Oqim</h3>
-                          <p className="text-xs text-slate-400">Botning oxirgi 5 ta harakati</p>
+                          <h3 className="text-lg font-black text-slate-900">
+                            Jonli Oqim
+                          </h3>
+                          <p className="text-xs text-slate-400">
+                            Botning oxirgi 5 ta harakati
+                          </p>
                         </div>
                         <div className="ml-auto flex items-center gap-2">
-                          <CircleDot size={10} className="text-red-500 animate-pulse" />
-                          <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Live</span>
+                          <CircleDot
+                            size={10}
+                            className="text-red-500 animate-pulse"
+                          />
+                          <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">
+                            Live
+                          </span>
                         </div>
                       </div>
 
                       {sbLogs.length > 0 ? (
                         <div className="space-y-3">
                           {sbLogs.map((log: any, i: number) => (
-                            <div key={i} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl">
-                              <div className={cn(
-                                "mt-0.5 w-2 h-2 rounded-full shrink-0",
-                                log.type === "faq" ? "bg-green-400" :
-                                log.type === "retarget" ? "bg-blue-400" :
-                                log.type === "loyalty" ? "bg-amber-400" :
-                                "bg-slate-300"
-                              )} />
+                            <div
+                              key={i}
+                              className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl"
+                            >
+                              <div
+                                className={cn(
+                                  "mt-0.5 w-2 h-2 rounded-full shrink-0",
+                                  log.type === "faq"
+                                    ? "bg-green-400"
+                                    : log.type === "retarget"
+                                      ? "bg-blue-400"
+                                      : log.type === "loyalty"
+                                        ? "bg-amber-400"
+                                        : "bg-slate-300",
+                                )}
+                              />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs font-bold text-slate-700">
-                                    {log.type === "faq" ? "FAQ javob" :
-                                     log.type === "retarget" ? "Qayta bog'lanish" :
-                                     log.type === "loyalty" ? "Sodiq mijoz" :
-                                     "Xabar"}
+                                    {log.type === "faq"
+                                      ? "FAQ javob"
+                                      : log.type === "retarget"
+                                        ? "Qayta bog'lanish"
+                                        : log.type === "loyalty"
+                                          ? "Sodiq mijoz"
+                                          : "Xabar"}
                                   </span>
                                   {log.username && (
-                                    <span className="text-[10px] text-slate-400">@{log.username}</span>
+                                    <span className="text-[10px] text-slate-400">
+                                      @{log.username}
+                                    </span>
                                   )}
                                   <span className="text-[10px] text-slate-300 ml-auto">
-                                    {new Date(log.createdAt).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" })}
+                                    {new Date(log.createdAt).toLocaleTimeString(
+                                      "uz-UZ",
+                                      { hour: "2-digit", minute: "2-digit" },
+                                    )}
                                   </span>
                                 </div>
                                 <p className="text-xs text-slate-500 truncate mt-0.5">
-                                  {log.userMessage ? `"${log.userMessage}"` : "—"}
+                                  {log.userMessage
+                                    ? `"${log.userMessage}"`
+                                    : "—"}
                                 </p>
                               </div>
                             </div>
@@ -5405,11 +5715,19 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       ) : (
                         <div className="py-8 text-center text-slate-300">
                           {sbStatsLoading ? (
-                            <Loader2 size={24} className="animate-spin mx-auto" />
+                            <Loader2
+                              size={24}
+                              className="animate-spin mx-auto"
+                            />
                           ) : (
                             <>
-                              <Radio size={32} className="mx-auto mb-2 text-slate-200" />
-                              <p className="text-sm text-slate-400">Hozircha loglar yo'q</p>
+                              <Radio
+                                size={32}
+                                className="mx-auto mb-2 text-slate-200"
+                              />
+                              <p className="text-sm text-slate-400">
+                                Hozircha loglar yo'q
+                              </p>
                             </>
                           )}
                         </div>
@@ -6199,3 +6517,6 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
     </div>
   );
 }
+
+
+
