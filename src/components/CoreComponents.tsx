@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Users, Share2, TrendingUp, UserCheck, Settings, LogOut, MessageSquare, BarChart3, Rocket, Calculator, PieChart, Landmark, Globe, Megaphone, Zap } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Share2, TrendingUp, UserCheck, Settings, LogOut, MessageSquare, BarChart3, Rocket, Calculator, PieChart, Landmark, Globe, Megaphone, Zap, Bot } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -21,6 +21,7 @@ export const Sidebar = ({ activeTab, onTabChange }: { activeTab: string, onTabCh
     { id: 'automation', icon: Zap, label: 'Avtomatizatsiya' },
     { id: 'influencers', icon: UserCheck, label: 'Influencerlar' },
     { id: 'website', icon: Globe, label: 'Sayt Yaratish' },
+    { id: 'salesbot', icon: Bot, label: 'Sotuvchi Robot' },
     { id: 'crm', icon: Users, label: 'Lidlar (CRM)' },
     { id: 'analytics', icon: TrendingUp, label: 'Analitika' },
   ];
