@@ -61,6 +61,9 @@ import {
   ArrowUpDown,
   Instagram,
   Youtube,
+  Target,
+  MousePointerClick,
+  TrendingDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Markdown from "react-markdown";
@@ -97,6 +100,61 @@ import {
   AreaChart,
   Area,
 } from "recharts";
+
+// --- Number Formatting Utilities ---
+const formatNumber = (value: number): string => {
+  return new Intl.NumberFormat("uz-UZ").format(value).replace(/\s/g, ",");
+};
+
+const formatCompact = (value: number): string => {
+  if (Math.abs(value) >= 1_000_000_000) return (value / 1_000_000_000).toFixed(1).replace(/\.0$/, "") + " mlrd";
+  if (Math.abs(value) >= 1_000_000) return (value / 1_000_000).toFixed(1).replace(/\.0$/, "") + " mln";
+  if (Math.abs(value) >= 1_000) return (value / 1_000).toFixed(1).replace(/\.0$/, "") + " ming";
+  return value.toString();
+};
+
+const formatCurrency = (value: number, compact = false): string => {
+  if (compact && Math.abs(value) >= 1_000_000) {
+    return `${formatCompact(value)} so'm`;
+  }
+  return `${formatNumber(value)} so'm`;
+};
+
+// --- Reusable UI Components ---
+const FormattedNumber = ({ value, currency, compact, className }: { value: number; currency?: boolean; compact?: boolean; className?: string }) => {
+  const display = currency ? formatCurrency(value, compact) : formatNumber(value);
+  const tooltip = currency && compact && Math.abs(value) >= 1_000_000 ? formatCurrency(value, false) : undefined;
+  return (
+    <span className={className} title={tooltip}>
+      {display}
+    </span>
+  );
+};
+
+const StatCard = ({ label, value, icon: Icon, color = "slate" }: { label: string; value: number; icon?: any; color?: "orange" | "green" | "red" | "blue" | "slate" }) => {
+  const colorMap: Record<string, { bg: string; text: string; border: string; iconBg: string }> = {
+    orange: { bg: "bg-orange-50", text: "text-slate-900", border: "border-orange-100", iconBg: "text-orange-500" },
+    green: { bg: "bg-green-50", text: "text-green-700", border: "border-green-100", iconBg: "text-green-500" },
+    red: { bg: "bg-red-50", text: "text-red-600", border: "border-red-100", iconBg: "text-red-500" },
+    blue: { bg: "bg-blue-50", text: "text-slate-900", border: "border-blue-100", iconBg: "text-blue-500" },
+    slate: { bg: "bg-slate-50", text: "text-slate-900", border: "border-slate-100", iconBg: "text-slate-500" },
+  };
+  const c = colorMap[color];
+  return (
+    <div className={`p-4 ${c.bg} rounded-xl border ${c.border} transition-colors`}>
+      <div className="flex items-center gap-2 mb-1.5">
+        {Icon && <Icon size={14} className={c.iconBg} />}
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
+      </div>
+      <p className={`text-xl font-bold ${c.text} tabular-nums`}>
+        <FormattedNumber value={value} currency compact />
+      </p>
+      <p className="text-[10px] text-slate-400 mt-0.5 tabular-nums">
+        {formatNumber(value)} so'm
+      </p>
+    </div>
+  );
+};
 
 // --- Error Boundary ---
 interface ErrorBoundaryProps {
@@ -356,6 +414,10 @@ function AppContent() {
     string | null
   >(null);
   const [marketAnalysisLoading, setMarketAnalysisLoading] = useState(false);
+
+  // Dashboard Ad Performance State
+  const [adDateRange, setAdDateRange] = useState<"7" | "30" | "90">("30");
+  const [adPlatform, setAdPlatform] = useState<"all" | "instagram" | "telegram" | "google">("all");
 
   // Auth Listener
   useEffect(() => {
@@ -1115,6 +1177,7 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-8"
               >
+                {/* Top Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <AnalyticsCard
                     title="Jami Lidlar"
@@ -1142,80 +1205,262 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                   />
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-slate-50 flex justify-between items-center">
-                      <h3 className="font-bold text-slate-800">
-                        Oxirgi Lidlar
-                      </h3>
-                      <button
-                        onClick={() => setActiveTab("crm")}
-                        className="text-sm text-orange-500 font-semibold hover:underline"
-                      >
-                        Hammasini ko'rish
-                      </button>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold tracking-wider">
-                          <tr>
-                            <th className="py-3 px-4">Ism</th>
-                            <th className="py-3 px-4">Telefon</th>
-                            <th className="py-3 px-4">Manba</th>
-                            <th className="py-3 px-4">Status</th>
-                            <th className="py-3 px-4 text-right">Amal</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {leads.slice(0, 5).map((lead) => (
-                            <LeadRow key={lead.id} lead={lead} />
-                          ))}
-                          {leads.length === 0 && (
-                            <tr>
-                              <td
-                                colSpan={5}
-                                className="py-12 text-center text-slate-400 italic"
-                              >
-                                Hozircha lidlar mavjud emas
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                {/* Reklama natijalari */}
+                {(() => {
+                  // --- Ad performance data (mock, filterable) ---
+                  const adDataByRange: Record<string, { budget: number; impressions: number; leads: number; conversion: number; ctr: number; cpm: number; cps: number; chart: { name: string; impressions: number; leads: number }[] }> = {
+                    "7": { budget: 450000, impressions: 18200, leads: 12, conversion: 2.8, ctr: 3.1, cpm: 24700, cps: 37500, chart: [
+                      { name: "Dush", impressions: 2400, leads: 1 },
+                      { name: "Sesh", impressions: 2800, leads: 2 },
+                      { name: "Chor", impressions: 3100, leads: 2 },
+                      { name: "Pay", impressions: 2600, leads: 1 },
+                      { name: "Jum", impressions: 2900, leads: 3 },
+                      { name: "Shan", impressions: 2200, leads: 2 },
+                      { name: "Yak", impressions: 2200, leads: 1 },
+                    ]},
+                    "30": { budget: 1500000, impressions: 68400, leads: 42, conversion: 3.2, ctr: 2.5, cpm: 21900, cps: 35700, chart: [
+                      { name: "1-hafta", impressions: 15200, leads: 8 },
+                      { name: "2-hafta", impressions: 17800, leads: 11 },
+                      { name: "3-hafta", impressions: 18600, leads: 12 },
+                      { name: "4-hafta", impressions: 16800, leads: 11 },
+                    ]},
+                    "90": { budget: 4200000, impressions: 210000, leads: 135, conversion: 3.5, ctr: 2.8, cpm: 20000, cps: 31100, chart: [
+                      { name: "Yanvar", impressions: 58000, leads: 35 },
+                      { name: "Fevral", impressions: 72000, leads: 48 },
+                      { name: "Mart", impressions: 80000, leads: 52 },
+                    ]},
+                  };
 
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
-                    <h3 className="font-bold text-slate-800">
-                      AI Kontent Rejasi
-                    </h3>
-                    <div className="space-y-4">
-                      <textarea
-                        className="w-full h-32 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all"
-                        placeholder="Mavzu haqida yozing..."
-                        value={contentInput}
-                        onChange={(e) => setContentInput(e.target.value)}
-                      />
-                      <button
-                        onClick={handleGeneratePlan}
-                        disabled={loading}
-                        className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors disabled:opacity-50"
-                      >
-                        {loading ? (
-                          <Clock className="animate-spin" size={18} />
-                        ) : (
-                          <Plus size={18} />
-                        )}
-                        Reja Yaratish
-                      </button>
-                    </div>
-                    {generatedPlan && (
-                      <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl">
-                        <p className="text-sm text-slate-700 italic leading-relaxed">
-                          {generatedPlan}
-                        </p>
+                  const platformMultiplier: Record<string, number> = { all: 1, instagram: 0.45, telegram: 0.35, google: 0.2 };
+                  const mult = platformMultiplier[adPlatform];
+                  const base = adDataByRange[adDateRange];
+                  const ad = {
+                    budget: Math.round(base.budget * mult),
+                    impressions: Math.round(base.impressions * mult),
+                    leads: Math.round(base.leads * mult),
+                    conversion: +(base.conversion * (mult === 1 ? 1 : 0.7 + Math.random() * 0.6)).toFixed(1),
+                    ctr: +(base.ctr * (mult === 1 ? 1 : 0.8 + Math.random() * 0.4)).toFixed(1),
+                    cpm: Math.round(base.cpm * (mult === 1 ? 1 : 0.85 + Math.random() * 0.3)),
+                    cps: Math.round(base.cps * (mult === 1 ? 1 : 0.8 + Math.random() * 0.4)),
+                    chart: base.chart.map(d => ({
+                      name: d.name,
+                      impressions: Math.round(d.impressions * mult),
+                      leads: Math.max(1, Math.round(d.leads * mult)),
+                    })),
+                  };
+
+                  // Insights
+                  const insights: { text: string; type: "good" | "warn" | "bad" }[] = [];
+                  if (ad.ctr < 2) insights.push({ text: "CTR past — reklama matnini yaxshilang", type: "bad" });
+                  else if (ad.ctr >= 3) insights.push({ text: "CTR yuqori — reklama samarali ishlayapti", type: "good" });
+                  else insights.push({ text: "CTR o'rtacha — A/B test qiling", type: "warn" });
+                  if (ad.conversion >= 3) insights.push({ text: "Konversiya yuqori — kampaniya samarali", type: "good" });
+                  else if (ad.conversion < 2) insights.push({ text: "Konversiya past — landing sahifani optimallashtiring", type: "bad" });
+                  if (ad.cps > 40000) insights.push({ text: "CPS yuqori — auditoriyani aniqroq tanlang", type: "warn" });
+                  else insights.push({ text: "CPS optimal — xarajat nazoratda", type: "good" });
+
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                      {/* Header + Filters */}
+                      <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-lg">Reklama natijalari</h3>
+                          <p className="text-sm text-slate-400 mt-0.5">So'nggi kampaniyalar bo'yicha asosiy ko'rsatkichlar</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {(["7", "30", "90"] as const).map((v) => (
+                            <button
+                              key={v}
+                              onClick={() => setAdDateRange(v)}
+                              className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-bold transition-colors",
+                                adDateRange === v
+                                  ? "bg-slate-900 text-white"
+                                  : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+                              )}
+                            >
+                              {v === "7" ? "7 kun" : v === "30" ? "30 kun" : "90 kun"}
+                            </button>
+                          ))}
+                          <select
+                            value={adPlatform}
+                            onChange={(e) => setAdPlatform(e.target.value as any)}
+                            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            <option value="all">Barcha platformalar</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="telegram">Telegram</option>
+                            <option value="google">Google</option>
+                          </select>
+                        </div>
                       </div>
-                    )}
+
+                      <div className="p-6 space-y-6">
+                        {/* Grouped Metric Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {/* Xarajat Group */}
+                          <div className="space-y-3">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                              <DollarSign size={12} /> Xarajat
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Byudjet</p>
+                                <p className="text-xl font-bold text-slate-900 tabular-nums">{formatCurrency(ad.budget, true)}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5 tabular-nums">{formatNumber(ad.budget)} so'm</p>
+                              </div>
+                              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">CPM</p>
+                                <p className="text-xl font-bold text-slate-900 tabular-nums">{formatCurrency(ad.cpm, true)}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">1000 ko'rish narxi</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Trafik Group */}
+                          <div className="space-y-3">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                              <Eye size={12} /> Trafik
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Ko'rishlar</p>
+                                <p className="text-xl font-bold text-slate-900 tabular-nums">{formatCompact(ad.impressions)}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5 tabular-nums">{formatNumber(ad.impressions)}</p>
+                              </div>
+                              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">CTR</p>
+                                <p className={cn("text-xl font-bold tabular-nums", ad.ctr >= 3 ? "text-green-600" : ad.ctr < 2 ? "text-red-500" : "text-slate-900")}>
+                                  {ad.ctr}%
+                                </p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">bosish darajasi</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Natija Group */}
+                          <div className="space-y-3">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                              <Target size={12} /> Natija
+                            </p>
+                            <div className="grid grid-cols-3 gap-3">
+                              <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Murojaatlar</p>
+                                <p className="text-xl font-bold text-slate-900 tabular-nums">{ad.leads}</p>
+                              </div>
+                              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Konversiya</p>
+                                <p className={cn("text-xl font-bold tabular-nums", ad.conversion >= 3 ? "text-green-600" : ad.conversion < 2 ? "text-red-500" : "text-slate-900")}>
+                                  {ad.conversion}%
+                                </p>
+                              </div>
+                              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">CPS</p>
+                                <p className="text-xl font-bold text-slate-900 tabular-nums">{formatCompact(ad.cps)}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">so'm/lid</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Chart + Insights */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                          {/* Chart */}
+                          <div className="lg:col-span-2 bg-slate-50 rounded-xl border border-slate-100 p-5">
+                            <p className="text-xs font-bold text-slate-500 mb-4">Ko'rishlar va Murojaatlar</p>
+                            <ResponsiveContainer width="100%" height={220}>
+                              <AreaChart data={ad.chart} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                                <defs>
+                                  <linearGradient id="gradImpr" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.15} />
+                                    <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                                  </linearGradient>
+                                  <linearGradient id="gradLeads" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.15} />
+                                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                                <Tooltip
+                                  contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
+                                  formatter={(value: number, name: string) => [formatNumber(value), name === "impressions" ? "Ko'rishlar" : "Murojaatlar"]}
+                                />
+                                <Area type="monotone" dataKey="impressions" stroke="#f97316" strokeWidth={2} fill="url(#gradImpr)" />
+                                <Area type="monotone" dataKey="leads" stroke="#22c55e" strokeWidth={2} fill="url(#gradLeads)" />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+
+                          {/* Insights */}
+                          <div className="space-y-3">
+                            <p className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                              <Sparkles size={14} className="text-orange-400" /> Tezkor tavsiyalar
+                            </p>
+                            <div className="space-y-2">
+                              {insights.map((ins, i) => (
+                                <div
+                                  key={i}
+                                  className={cn(
+                                    "p-3 rounded-xl border text-sm",
+                                    ins.type === "good" && "bg-green-50 border-green-100 text-green-700",
+                                    ins.type === "warn" && "bg-orange-50 border-orange-100 text-orange-700",
+                                    ins.type === "bad" && "bg-red-50 border-red-100 text-red-600",
+                                  )}
+                                >
+                                  <span className="mr-1.5">{ins.type === "good" ? "✓" : ins.type === "warn" ? "⚠" : "✗"}</span>
+                                  {ins.text}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Oxirgi Lidlar */}
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-slate-50 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-800">
+                      Oxirgi Lidlar
+                    </h3>
+                    <button
+                      onClick={() => setActiveTab("crm")}
+                      className="text-sm text-orange-500 font-semibold hover:underline"
+                    >
+                      Hammasini ko'rish
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold tracking-wider">
+                        <tr>
+                          <th className="py-3 px-4">Ism</th>
+                          <th className="py-3 px-4">Telefon</th>
+                          <th className="py-3 px-4">Manba</th>
+                          <th className="py-3 px-4">Status</th>
+                          <th className="py-3 px-4 text-right">Amal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leads.slice(0, 5).map((lead) => (
+                          <LeadRow key={lead.id} lead={lead} />
+                        ))}
+                        {leads.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={5}
+                              className="py-12 text-center text-slate-400 italic"
+                            >
+                              Hozircha lidlar mavjud emas
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </motion.div>
@@ -2733,18 +2978,18 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-8 pb-12"
               >
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                   {/* AI Advisor Chat */}
-                  <div className="xl:col-span-2 flex flex-col h-[600px] bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-slate-50 flex items-center gap-4 bg-slate-50/50">
-                      <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-100">
-                        <Sparkles size={20} />
+                  <div className="xl:col-span-2 flex flex-col h-[600px] bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
+                      <div className="w-9 h-9 bg-orange-500 rounded-lg flex items-center justify-center text-white">
+                        <Sparkles size={18} />
                       </div>
                       <div>
-                        <h3 className="font-black text-slate-900 tracking-tight">
+                        <h3 className="font-bold text-sm text-slate-900">
                           AI Moliyaviy Maslahatchi
                         </h3>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-slate-400">
                           Biznesingiz uchun aqlli yordamchi
                         </p>
                       </div>
@@ -2763,13 +3008,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         >
                           <div
                             className={cn(
-                              "max-w-[80%] p-4 rounded-2xl text-sm shadow-sm",
+                              "max-w-[80%] p-4 rounded-2xl text-sm",
                               msg.role === "user"
                                 ? "bg-slate-900 text-white rounded-tr-none"
-                                : "bg-white text-slate-700 rounded-tl-none border border-slate-100",
+                                : "bg-white text-slate-700 rounded-tl-none border border-slate-100 shadow-sm",
                             )}
                           >
-                            {msg.text}
+                            <Markdown>{msg.text}</Markdown>
                           </div>
                         </div>
                       ))}
@@ -2784,12 +3029,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       )}
                     </div>
 
-                    <div className="p-4 border-t border-slate-50 bg-white">
+                    <div className="p-4 border-t border-slate-100 bg-white">
                       <div className="flex gap-2">
                         <input
                           type="text"
                           placeholder="Savolingizni yozing (masalan: Biznes-reja qanday tuziladi?)..."
-                          className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                          className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500"
                           value={bizInput}
                           onChange={(e) => setBizInput(e.target.value)}
                           onKeyPress={(e) =>
@@ -2799,9 +3044,9 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         <button
                           onClick={() => handleBizChat()}
                           disabled={bizLoading}
-                          className="p-4 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 active:scale-95 disabled:opacity-50"
+                          className="p-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors active:scale-95 disabled:opacity-50"
                         >
-                          <Send size={20} />
+                          <Send size={18} />
                         </button>
                       </div>
                     </div>
@@ -2810,35 +3055,42 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                   {/* Tools Sidebar */}
                   <div className="space-y-6">
                     {/* Loan Calculator */}
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                      <div className="flex items-center gap-3 text-orange-500">
-                        <Calculator size={20} />
-                        <h4 className="font-black text-slate-900 uppercase tracking-widest text-xs">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+                      <div className="flex items-center gap-3">
+                        <Calculator size={18} className="text-orange-500" />
+                        <h4 className="font-bold text-sm text-slate-900">
                           Kredit Kalkulyatori
                         </h4>
                       </div>
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">
                             Summa (so'm)
                           </label>
                           <input
-                            type="number"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                            value={loanAmount}
-                            onChange={(e) =>
-                              setLoanAmount(Number(e.target.value))
-                            }
+                            type="text"
+                            inputMode="numeric"
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-orange-500 tabular-nums"
+                            value={formatNumber(loanAmount)}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, "");
+                              setLoanAmount(Number(raw) || 0);
+                            }}
                           />
+                          {loanAmount > 0 && (
+                            <p className="text-[10px] text-slate-400 pl-1">
+                              {formatCompact(loanAmount)} so'm
+                            </p>
+                          )}
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-3">
                           <div className="space-y-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase">
                               Foiz (%)
                             </label>
                             <input
                               type="number"
-                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-orange-500"
                               value={loanRate}
                               onChange={(e) =>
                                 setLoanRate(Number(e.target.value))
@@ -2851,7 +3103,7 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                             </label>
                             <input
                               type="number"
-                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-orange-500"
                               value={loanTerm}
                               onChange={(e) =>
                                 setLoanTerm(Number(e.target.value))
@@ -2859,45 +3111,58 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                             />
                           </div>
                         </div>
-                        <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
-                          <p className="text-[10px] text-orange-600 font-black uppercase tracking-widest mb-1">
-                            Oylik to'lov
-                          </p>
-                          <p className="text-2xl font-black text-slate-900">
-                            {calculateLoan().toLocaleString()} so'm
-                          </p>
-                        </div>
+                        <StatCard
+                          label="Oylik to'lov"
+                          value={calculateLoan()}
+                          icon={DollarSign}
+                          color="orange"
+                        />
+                        {calculateLoan() > 0 && (
+                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                            <span className="text-slate-500">Jami to'lov</span>
+                            <span className="font-bold text-slate-700 tabular-nums">
+                              <FormattedNumber value={calculateLoan() * loanTerm} currency compact />
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Tax Calculator */}
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                      <div className="flex items-center gap-3 text-blue-500">
-                        <Landmark size={20} />
-                        <h4 className="font-black text-slate-900 uppercase tracking-widest text-xs">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+                      <div className="flex items-center gap-3">
+                        <Landmark size={18} className="text-blue-500" />
+                        <h4 className="font-bold text-sm text-slate-900">
                           Soliq Hisob-kitobi
                         </h4>
                       </div>
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">
                             Yillik tushum (so'm)
                           </label>
                           <input
-                            type="number"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-                            value={taxRevenue}
-                            onChange={(e) =>
-                              setTaxRevenue(Number(e.target.value))
-                            }
+                            type="text"
+                            inputMode="numeric"
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-orange-500 tabular-nums"
+                            value={formatNumber(taxRevenue)}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, "");
+                              setTaxRevenue(Number(raw) || 0);
+                            }}
                           />
+                          {taxRevenue > 0 && (
+                            <p className="text-[10px] text-slate-400 pl-1">
+                              {formatCompact(taxRevenue)} so'm
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">
                             Soliq turi
                           </label>
                           <select
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-orange-500"
                             value={taxType}
                             onChange={(e) => setTaxType(e.target.value)}
                           >
@@ -2912,26 +3177,32 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                             </option>
                           </select>
                         </div>
-                        <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                          <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest mb-1">
-                            Taxminiy soliq
-                          </p>
-                          <p className="text-2xl font-black text-slate-900">
-                            {calculateTax().toLocaleString()} so'm
-                          </p>
-                        </div>
+                        <StatCard
+                          label="Taxminiy soliq"
+                          value={calculateTax()}
+                          icon={Landmark}
+                          color="blue"
+                        />
+                        {taxRevenue > 0 && calculateTax() > 0 && (
+                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                            <span className="text-slate-500">Soliqdan keyin</span>
+                            <span className="font-bold text-green-600 tabular-nums">
+                              <FormattedNumber value={taxRevenue - calculateTax()} currency compact />
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Market Analysis Tool */}
-                    <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-                      <div className="flex items-center gap-3 text-purple-500">
-                        <PieChart size={20} />
-                        <h4 className="font-black text-slate-900 uppercase tracking-widest text-xs">
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+                      <div className="flex items-center gap-3">
+                        <PieChart size={18} className="text-orange-500" />
+                        <h4 className="font-bold text-sm text-slate-900">
                           Bozor Tahlili (AI)
                         </h4>
                       </div>
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-slate-400 uppercase">
                             Biznes g'oyasi
@@ -2939,7 +3210,7 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           <input
                             type="text"
                             placeholder="Masalan: Toshkentda kofe do'koni..."
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500"
                             value={marketAnalysisInput}
                             onChange={(e) =>
                               setMarketAnalysisInput(e.target.value)
@@ -2951,7 +3222,7 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           disabled={
                             marketAnalysisLoading || !marketAnalysisInput.trim()
                           }
-                          className="w-full py-3 bg-purple-500 text-white rounded-xl font-bold hover:bg-purple-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="w-full py-3 bg-orange-500 text-white rounded-xl font-bold text-sm hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {marketAnalysisLoading ? (
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -2963,7 +3234,7 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           )}
                         </button>
                         {marketAnalysisResult && (
-                          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 max-h-[300px] overflow-y-auto prose prose-sm">
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 max-h-[300px] overflow-y-auto prose prose-sm prose-slate">
                             <Markdown>{marketAnalysisResult}</Markdown>
                           </div>
                         )}
@@ -2974,13 +3245,10 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     <div className="grid grid-cols-2 gap-4">
                       <button
                         onClick={() => setShowBizPlanForm(true)}
-                        className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col items-center gap-2 hover:bg-slate-800 transition-all group"
+                        className="p-4 bg-slate-900 text-white rounded-xl flex flex-col items-center gap-2 hover:bg-slate-800 transition-colors"
                       >
-                        <Rocket
-                          size={20}
-                          className="group-hover:translate-y-[-2px] transition-transform"
-                        />
-                        <span className="text-[10px] font-black uppercase tracking-tighter">
+                        <Rocket size={18} />
+                        <span className="text-[10px] font-bold uppercase tracking-tight">
                           Biznes-reja
                         </span>
                       </button>
@@ -2990,13 +3258,10 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                             "Mening biznesim uchun bozor tahlilini qilib bering. O'zbekiston bozoridagi raqobatchilar va imkoniyatlarni qanday aniqlasam bo'ladi?",
                           )
                         }
-                        className="p-4 bg-white border border-slate-200 text-slate-900 rounded-2xl flex flex-col items-center gap-2 hover:bg-slate-50 transition-all group"
+                        className="p-4 bg-white border border-slate-200 text-slate-900 rounded-xl flex flex-col items-center gap-2 hover:bg-slate-50 transition-colors"
                       >
-                        <PieChart
-                          size={20}
-                          className="group-hover:scale-110 transition-transform"
-                        />
-                        <span className="text-[10px] font-black uppercase tracking-tighter">
+                        <PieChart size={18} />
+                        <span className="text-[10px] font-bold uppercase tracking-tight">
                           Bozor tahlili
                         </span>
                       </button>
