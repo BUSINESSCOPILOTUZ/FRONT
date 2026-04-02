@@ -68,6 +68,20 @@ import {
   Type,
   Languages,
   Check,
+  Bot,
+  Brain,
+  Shield,
+  Activity,
+  RefreshCw,
+  Gift,
+  Upload,
+  Wifi,
+  WifiOff,
+  Play,
+  Pause,
+  Trash2 as TrashIcon,
+  Radio,
+  CircleDot,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Markdown from "react-markdown";
@@ -283,6 +297,122 @@ const aiApi = {
     if (!data.status) throw new Error(data.message);
     return data.data.text;
   },
+  /**
+   * Generate DALL-E 3 images for TG or Meta ads.
+   * TG response:   { platform: "tg", images: [url, url, url] }
+   * Meta response:  { platform: "instagram", images: [{ url, ratio, label }] }
+   */
+  generateAdImages: async (
+    description: string,
+    platform: string,
+    language?: string,
+  ) => {
+    const res = await fetch(`${API_BASE}/generate-ad-images`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, platform, ...(language && { language }) }),
+    });
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
+};
+
+// --- Bot API Client ---
+const BOT_API = "https://apibusinesscopilot.masatov.uz/api/bot";
+
+const botApi = {
+  validateToken: async (token: string) => {
+    const res = await fetch(`${BOT_API}/validate-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
+  getSettings: async (userId: string) => {
+    const res = await fetch(`${BOT_API}/settings/${userId}`);
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
+  updateSettings: async (userId: string, updates: any) => {
+    const res = await fetch(`${BOT_API}/settings/${userId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
+  uploadKnowledgeFile: async (userId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${BOT_API}/knowledge/${userId}`, {
+      method: "POST",
+      body: formData,
+    });
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
+  uploadKnowledgeText: async (userId: string, text: string) => {
+    const res = await fetch(`${BOT_API}/knowledge/${userId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
+  getKnowledge: async (userId: string) => {
+    const res = await fetch(`${BOT_API}/knowledge/${userId}`);
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
+  deleteKnowledge: async (userId: string, chunkId: string) => {
+    const res = await fetch(`${BOT_API}/knowledge/${userId}/${chunkId}`, {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data;
+  },
+  clearKnowledge: async (userId: string) => {
+    const res = await fetch(`${BOT_API}/knowledge/${userId}`, {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data;
+  },
+  testChat: async (userId: string, message: string) => {
+    const res = await fetch(`${BOT_API}/chat/${userId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
+  getAnalytics: async (userId: string, days?: number) => {
+    const res = await fetch(`${BOT_API}/analytics/${userId}?days=${days || 7}`);
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
+  getLogs: async (userId: string, count?: number) => {
+    const res = await fetch(`${BOT_API}/logs/${userId}?count=${count || 5}`);
+    const data = await res.json();
+    if (!data.status) throw new Error(data.message);
+    return data.data;
+  },
 };
 
 // --- Types ---
@@ -416,13 +546,15 @@ function AppContent() {
   // TG Ads Extended State
   const [tgAdsLang, setTgAdsLang] = useState<"uz" | "en" | "ru">("uz");
   const [tgTextVariants, setTgTextVariants] = useState<string[]>([]);
-  const [tgImageVariants, setTgImageVariants] = useState<string[]>([]);
+  const [tgImageVariants, setTgImageVariants] = useState<(string | null)[]>([]);
   const [tgSelectedText, setTgSelectedText] = useState<number | null>(null);
   const [tgSelectedImage, setTgSelectedImage] = useState<number | null>(null);
+  const [tgImagesLoading, setTgImagesLoading] = useState(false);
 
   // Meta Ads Extended State
-  const [metaImages, setMetaImages] = useState<{ url: string; ratio: string; label: string }[]>([]);
+  const [metaImages, setMetaImages] = useState<{ url: string | null; ratio: string; label: string }[]>([]);
   const [metaTexts, setMetaTexts] = useState<{ headline: string; primary: string; cta: string } | null>(null);
+  const [metaImagesLoading, setMetaImagesLoading] = useState(false);
 
   // Market Analysis State
   const [marketAnalysisInput, setMarketAnalysisInput] = useState("");
@@ -434,6 +566,43 @@ function AppContent() {
   // Dashboard Ad Performance State
   const [adDateRange, setAdDateRange] = useState<"7" | "30" | "90">("30");
   const [adPlatform, setAdPlatform] = useState<"all" | "instagram" | "telegram" | "google">("all");
+
+  // ─── Sotuvchi Robot State ──────────────────────────────
+  const [sbTab, setSbTab] = useState<"brain" | "action" | "stats">("brain");
+  const [sbBotToken, setSbBotToken] = useState("");
+  const [sbBotInfo, setSbBotInfo] = useState<{ username?: string; first_name?: string } | null>(null);
+  const [sbTokenValidating, setSbTokenValidating] = useState(false);
+  const [sbTokenError, setSbTokenError] = useState("");
+  const [sbConnected, setSbConnected] = useState(false);
+  const [sbSystemPrompt, setSbSystemPrompt] = useState(
+    "Siz xushmuomala va professional sotuvchisiz. Mijozlarga mahsulotlar haqida batafsil ma'lumot bering, narxlarni ayting va xarid qilishga undang."
+  );
+  const [sbKnowledgeChunks, setSbKnowledgeChunks] = useState<any[]>([]);
+  const [sbKnowledgeText, setSbKnowledgeText] = useState("");
+  const [sbKnowledgeUploading, setSbKnowledgeUploading] = useState(false);
+  const [sbRetargetEnabled, setSbRetargetEnabled] = useState(false);
+  const [sbRetargetDays, setSbRetargetDays] = useState(7);
+  const [sbRetargetMessage, setSbRetargetMessage] = useState(
+    "Assalomu alaykum! Sizni yana ko'rganimizdan xursandmiz. Yangi mahsulotlarimiz bilan tanishing! 🎁"
+  );
+  const [sbLoyaltyEnabled, setSbLoyaltyEnabled] = useState(false);
+  const [sbLoyaltyDiscount, setSbLoyaltyDiscount] = useState(10);
+  const [sbLoyaltyMessage, setSbLoyaltyMessage] = useState(
+    "Hurmatli mijozimiz! Sodiq mijozimiz sifatida sizga maxsus chegirma: {discount}% 🎉"
+  );
+  const [sbAnalytics, setSbAnalytics] = useState<{
+    totalInteractions: number;
+    uniqueCustomers: number;
+    retargets: number;
+    conversionRate: number;
+    activity: { day: string; date: string; count: number }[];
+  } | null>(null);
+  const [sbLogs, setSbLogs] = useState<any[]>([]);
+  const [sbStatsLoading, setSbStatsLoading] = useState(false);
+  const [sbTestMessage, setSbTestMessage] = useState("");
+  const [sbTestResponse, setSbTestResponse] = useState("");
+  const [sbTestLoading, setSbTestLoading] = useState(false);
+  const [sbSettingsSaving, setSbSettingsSaving] = useState(false);
 
   // Auth Listener
   useEffect(() => {
@@ -1062,56 +1231,83 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
     setTgSelectedImage(null);
     setMetaImages([]);
     setMetaTexts(null);
+    setTgImagesLoading(false);
+    setMetaImagesLoading(false);
 
     try {
+      // Step 1: Generate text creatives (fast — GPT-4o-mini)
       const result = await aiApi.generateAds(
         adsInput,
         adsPlatform,
         adsPlatform === "tg" ? tgAdsLang : undefined,
       );
-      // Set legacy result for backward compat
       setAdsResult(result);
 
       if (adsPlatform === "tg") {
-        /**
-         * TG Ads: Backend should return { creative, hooks, ctas, textVariants?, imageVariants? }
-         * If backend doesn't return multi-variant data yet, generate mock variants
-         * from the existing creative/hooks response for UI demo.
-         */
+        // Build 5 text variants from GPT response
         const langLabel = tgAdsLang === "uz" ? "O'zbek" : tgAdsLang === "en" ? "English" : "Русский";
         const textVars: string[] = result.textVariants || [
           result.creative?.substring(0, 160) || `${langLabel}: ${adsInput.substring(0, 120)}... 🔥`,
           ...(result.hooks || []).slice(0, 4).map((h: string) => h.substring(0, 160)),
         ];
-        // Ensure exactly 5
         while (textVars.length < 5) textVars.push(`${langLabel} variant ${textVars.length + 1}: ${adsInput.substring(0, 100)}`);
         setTgTextVariants(textVars.slice(0, 5).map((t: string) => t.substring(0, 160)));
 
-        const imgVars: string[] = result.imageVariants || [
-          `https://placehold.co/800x450/f97316/white?text=TG+Ad+1`,
-          `https://placehold.co/800x450/1e293b/white?text=TG+Ad+2`,
-          `https://placehold.co/800x450/3b82f6/white?text=TG+Ad+3`,
-        ];
-        setTgImageVariants(imgVars.slice(0, 3));
+        // Step 2: Generate DALL-E images (slow — show skeleton loaders)
+        setTgImagesLoading(true);
+        setTgImageVariants([null, null, null]); // 3 skeleton slots
+        setAdsLoading(false); // Unlock UI, images load in background
+
+        try {
+          const imgData = await aiApi.generateAdImages(adsInput, "tg", tgAdsLang);
+          setTgImageVariants(imgData.images || [null, null, null]);
+        } catch (imgError: any) {
+          console.error("DALL-E TG images error:", imgError);
+          setTgImageVariants([
+            `https://placehold.co/800x450/f97316/white?text=TG+Ad+1`,
+            `https://placehold.co/800x450/1e293b/white?text=TG+Ad+2`,
+            `https://placehold.co/800x450/3b82f6/white?text=TG+Ad+3`,
+          ]);
+        } finally {
+          setTgImagesLoading(false);
+        }
       } else {
-        /**
-         * Meta Ads: Backend should return { creative, hooks, ctas, metaImages?, metaTexts? }
-         * Mock multi-format data if not present.
-         */
-        setMetaImages(result.metaImages || [
-          { url: "https://placehold.co/600x600/f97316/white?text=1:1+Square", ratio: "1:1", label: "Kvadrat (1:1)" },
-          { url: "https://placehold.co/800x450/1e293b/white?text=16:9+Landscape", ratio: "16:9", label: "Landshaft (16:9)" },
-          { url: "https://placehold.co/450x800/8b5cf6/white?text=9:16+Story", ratio: "9:16", label: "Story (9:16)" },
-        ]);
+        // Meta: set text fields from GPT response
         setMetaTexts(result.metaTexts || {
           headline: result.hooks?.[0] || "Sarlavha matni",
           primary: result.creative || "Asosiy reklama matni",
           cta: result.ctas?.[0] || "Batafsil ma'lumot",
         });
+
+        // Step 2: Generate DALL-E images (3 formats)
+        setMetaImagesLoading(true);
+        setMetaImages([
+          { url: null, ratio: "1:1", label: "Kvadrat (1:1)" },
+          { url: null, ratio: "16:9", label: "Landshaft (16:9)" },
+          { url: null, ratio: "9:16", label: "Story (9:16)" },
+        ]);
+        setAdsLoading(false); // Unlock UI, images load in background
+
+        try {
+          const imgData = await aiApi.generateAdImages(adsInput, "instagram");
+          setMetaImages(imgData.images || [
+            { url: null, ratio: "1:1", label: "Kvadrat (1:1)" },
+            { url: null, ratio: "16:9", label: "Landshaft (16:9)" },
+            { url: null, ratio: "9:16", label: "Story (9:16)" },
+          ]);
+        } catch (imgError: any) {
+          console.error("DALL-E Meta images error:", imgError);
+          setMetaImages([
+            { url: "https://placehold.co/600x600/f97316/white?text=1:1", ratio: "1:1", label: "Kvadrat (1:1)" },
+            { url: "https://placehold.co/800x450/1e293b/white?text=16:9", ratio: "16:9", label: "Landshaft (16:9)" },
+            { url: "https://placehold.co/450x800/8b5cf6/white?text=9:16", ratio: "9:16", label: "Story (9:16)" },
+          ]);
+        } finally {
+          setMetaImagesLoading(false);
+        }
       }
     } catch (error) {
       console.error("Ads AI error:", error);
-    } finally {
       setAdsLoading(false);
     }
   };
@@ -1129,6 +1325,164 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
       setMarketAnalysisLoading(false);
     }
   };
+
+  // ─── Sotuvchi Robot Handlers ───────────────────────────
+  const sbUserId = user?.uid || "demo-user-123";
+
+  const handleSbValidateToken = async () => {
+    if (!sbBotToken.trim() || sbBotToken.trim().length < 30) {
+      setSbTokenError("Token kamida 30 belgi bo'lishi kerak.");
+      return;
+    }
+    setSbTokenValidating(true);
+    setSbTokenError("");
+    try {
+      const info = await botApi.validateToken(sbBotToken.trim());
+      setSbBotInfo(info);
+      setSbConnected(true);
+      // Save to backend
+      await botApi.updateSettings(sbUserId, {
+        botToken: sbBotToken.trim(),
+        botUsername: info.username || "",
+        isConnected: true,
+      });
+    } catch {
+      setSbTokenError("Bot token noto'g'ri yoki muddati tugagan.");
+      setSbBotInfo(null);
+      setSbConnected(false);
+    } finally {
+      setSbTokenValidating(false);
+    }
+  };
+
+  const handleSbDisconnect = async () => {
+    setSbConnected(false);
+    setSbBotInfo(null);
+    setSbBotToken("");
+    await botApi.updateSettings(sbUserId, {
+      botToken: "",
+      botUsername: "",
+      isConnected: false,
+    });
+  };
+
+  const handleSbSaveSettings = async () => {
+    setSbSettingsSaving(true);
+    try {
+      await botApi.updateSettings(sbUserId, {
+        systemPrompt: sbSystemPrompt,
+        retargetEnabled: sbRetargetEnabled,
+        retargetDays: sbRetargetDays,
+        retargetMessage: sbRetargetMessage,
+        loyaltyEnabled: sbLoyaltyEnabled,
+        loyaltyDiscountPercent: sbLoyaltyDiscount,
+        loyaltyMessage: sbLoyaltyMessage,
+      });
+    } catch (err) {
+      console.error("Settings save error:", err);
+    } finally {
+      setSbSettingsSaving(false);
+    }
+  };
+
+  const handleSbUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSbKnowledgeUploading(true);
+    try {
+      await botApi.uploadKnowledgeFile(sbUserId, file);
+      const chunks = await botApi.getKnowledge(sbUserId);
+      setSbKnowledgeChunks(chunks);
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      setSbKnowledgeUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleSbUploadText = async () => {
+    if (!sbKnowledgeText.trim()) return;
+    setSbKnowledgeUploading(true);
+    try {
+      await botApi.uploadKnowledgeText(sbUserId, sbKnowledgeText.trim());
+      const chunks = await botApi.getKnowledge(sbUserId);
+      setSbKnowledgeChunks(chunks);
+      setSbKnowledgeText("");
+    } catch (err) {
+      console.error("Text upload error:", err);
+    } finally {
+      setSbKnowledgeUploading(false);
+    }
+  };
+
+  const handleSbDeleteChunk = async (chunkId: string) => {
+    try {
+      await botApi.deleteKnowledge(sbUserId, chunkId);
+      setSbKnowledgeChunks((prev) => prev.filter((c) => c._id !== chunkId));
+    } catch (err) {
+      console.error("Delete chunk error:", err);
+    }
+  };
+
+  const handleSbTestChat = async () => {
+    if (!sbTestMessage.trim()) return;
+    setSbTestLoading(true);
+    setSbTestResponse("");
+    try {
+      const data = await botApi.testChat(sbUserId, sbTestMessage.trim());
+      setSbTestResponse(data.response);
+    } catch {
+      setSbTestResponse("Xatolik yuz berdi. Qayta urinib ko'ring.");
+    } finally {
+      setSbTestLoading(false);
+    }
+  };
+
+  const handleSbLoadStats = async () => {
+    setSbStatsLoading(true);
+    try {
+      const [analytics, logs] = await Promise.all([
+        botApi.getAnalytics(sbUserId, 7),
+        botApi.getLogs(sbUserId, 5),
+      ]);
+      setSbAnalytics(analytics);
+      setSbLogs(logs);
+    } catch (err) {
+      console.error("Stats load error:", err);
+    } finally {
+      setSbStatsLoading(false);
+    }
+  };
+
+  // Load settings on mount
+  useEffect(() => {
+    if (activeTab === "salesbot" && user) {
+      (async () => {
+        try {
+          const settings = await botApi.getSettings(sbUserId);
+          if (settings.botToken) setSbBotToken(settings.botToken);
+          if (settings.botUsername) setSbBotInfo({ username: settings.botUsername });
+          setSbConnected(settings.isConnected || false);
+          setSbSystemPrompt(settings.systemPrompt || sbSystemPrompt);
+          setSbRetargetEnabled(settings.retargetEnabled || false);
+          setSbRetargetDays(settings.retargetDays || 7);
+          setSbRetargetMessage(settings.retargetMessage || sbRetargetMessage);
+          setSbLoyaltyEnabled(settings.loyaltyEnabled || false);
+          setSbLoyaltyDiscount(settings.loyaltyDiscountPercent || 10);
+          setSbLoyaltyMessage(settings.loyaltyMessage || sbLoyaltyMessage);
+
+          const chunks = await botApi.getKnowledge(sbUserId);
+          setSbKnowledgeChunks(chunks);
+        } catch {
+          // First visit — no settings yet
+        }
+      })();
+    }
+    if (activeTab === "salesbot" && sbTab === "stats" && user) {
+      handleSbLoadStats();
+    }
+  }, [activeTab, sbTab]);
 
   if (!isAuthReady) {
     return (
@@ -1197,6 +1551,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
         return "Reklama Avtomatizatsiyasi (AI)";
       case "automation":
         return "Avtomatizatsiya Sozlamalari";
+      case "salesbot":
+        return "Sotuvchi Robot (AI)";
       default:
         return "Platforma";
     }
@@ -3119,6 +3475,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                           <Image size={14} /> Rasm variantlari (16:9) — tanlang (1 ta)
+                          {tgImagesLoading && (
+                            <span className="ml-2 text-orange-500 font-semibold normal-case tracking-normal flex items-center gap-1">
+                              <div className="w-3 h-3 border-2 border-orange-300 border-t-orange-600 rounded-full animate-spin" />
+                              DALL-E yaratmoqda...
+                            </span>
+                          )}
                         </h4>
                         {tgSelectedImage !== null && (
                           <span className="text-xs font-bold text-green-600 flex items-center gap-1">
@@ -3130,21 +3492,30 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         {tgImageVariants.map((url, i) => (
                           <button
                             key={i}
-                            onClick={() => setTgSelectedImage(i)}
+                            onClick={() => url && setTgSelectedImage(i)}
+                            disabled={!url}
                             className={cn(
                               "rounded-xl border-2 overflow-hidden transition-all group relative",
+                              !url && "cursor-default",
                               tgSelectedImage === i
                                 ? "border-orange-500 ring-2 ring-orange-200"
                                 : "border-slate-100 hover:border-slate-300",
                             )}
                           >
                             <div className="aspect-video bg-slate-100 relative">
-                              <img
-                                src={url}
-                                alt={`TG reklama rasm ${i + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                              {tgSelectedImage === i && (
+                              {url ? (
+                                <img
+                                  src={url}
+                                  alt={`TG reklama rasm ${i + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                                  <div className="w-8 h-8 border-3 border-slate-200 border-t-orange-500 rounded-full animate-spin" />
+                                  <span className="text-[10px] text-slate-400 font-medium">Yaratilmoqda...</span>
+                                </div>
+                              )}
+                              {tgSelectedImage === i && url && (
                                 <div className="absolute top-2 right-2 w-7 h-7 bg-orange-500 rounded-full flex items-center justify-center shadow-lg">
                                   <Check size={14} className="text-white" />
                                 </div>
@@ -3152,7 +3523,7 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                             </div>
                             <div className="p-3 bg-white">
                               <p className="text-xs font-bold text-slate-500">Rasm {i + 1}</p>
-                              <p className="text-[10px] text-slate-400">16:9 format</p>
+                              <p className="text-[10px] text-slate-400">16:9 · 1792×1024 · DALL-E 3</p>
                             </div>
                           </button>
                         ))}
@@ -3265,58 +3636,676 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                       <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                         <Image size={14} /> Reklama rasmlari (3 format)
+                        {metaImagesLoading && (
+                          <span className="ml-2 text-orange-500 font-semibold normal-case tracking-normal flex items-center gap-1">
+                            <div className="w-3 h-3 border-2 border-orange-300 border-t-orange-600 rounded-full animate-spin" />
+                            DALL-E yaratmoqda...
+                          </span>
+                        )}
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
-                        {metaImages.map((img, i) => (
-                          <div key={i} className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50">
-                            <div className={cn(
-                              "relative bg-slate-200",
-                              img.ratio === "1:1" && "aspect-square",
-                              img.ratio === "16:9" && "aspect-video",
-                              img.ratio === "9:16" && "aspect-[9/16]",
-                            )}>
-                              <img
-                                src={img.url}
-                                alt={img.label}
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute top-2 left-2 px-2 py-1 bg-white/90 backdrop-blur rounded-md">
-                                <span className="text-[10px] font-bold text-slate-600">{img.ratio}</span>
+                        {metaImages.map((img, i) => {
+                          const sizeLabel = img.ratio === "1:1" ? "1024×1024" : img.ratio === "16:9" ? "1792×1024" : "1024×1792";
+                          return (
+                            <div key={i} className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50">
+                              <div className={cn(
+                                "relative bg-slate-200",
+                                img.ratio === "1:1" && "aspect-square",
+                                img.ratio === "16:9" && "aspect-video",
+                                img.ratio === "9:16" && "aspect-[9/16]",
+                              )}>
+                                {img.url ? (
+                                  <img
+                                    src={img.url}
+                                    alt={img.label}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                                    <div className="w-8 h-8 border-3 border-slate-200 border-t-orange-500 rounded-full animate-spin" />
+                                    <span className="text-[10px] text-slate-400 font-medium">Yaratilmoqda...</span>
+                                  </div>
+                                )}
+                                <div className="absolute top-2 left-2 px-2 py-1 bg-white/90 backdrop-blur rounded-md">
+                                  <span className="text-[10px] font-bold text-slate-600">{img.ratio}</span>
+                                </div>
+                              </div>
+                              <div className="p-3 bg-white flex items-center justify-between">
+                                <div>
+                                  <p className="text-xs font-bold text-slate-700">{img.label}</p>
+                                  <p className="text-[10px] text-slate-400">{sizeLabel} · DALL-E 3</p>
+                                </div>
+                                {img.url ? (
+                                  <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                    <Check size={12} className="text-green-600" />
+                                  </div>
+                                ) : (
+                                  <div className="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center">
+                                    <div className="w-3 h-3 border-2 border-slate-200 border-t-slate-400 rounded-full animate-spin" />
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            <div className="p-3 bg-white flex items-center justify-between">
-                              <div>
-                                <p className="text-xs font-bold text-slate-700">{img.label}</p>
-                                <p className="text-[10px] text-slate-400">{img.ratio} nisbat</p>
-                              </div>
-                              <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                                <Check size={12} className="text-green-600" />
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
-                      <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                        <Check size={12} className="text-green-500" />
-                        Barcha formatlar avtomatik tanlangan — tayyor eksport qilishga
-                      </p>
+                      {!metaImagesLoading && metaImages.every(img => img.url) && (
+                        <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                          <Check size={12} className="text-green-500" />
+                          Barcha formatlar avtomatik tanlangan — tayyor eksport qilishga
+                        </p>
+                      )}
                     </div>
 
                     {/* Export Summary */}
-                    <div className="p-5 bg-green-50 rounded-2xl border border-green-200 flex items-center justify-between flex-wrap gap-4">
+                    <div className={cn(
+                      "p-5 rounded-2xl border flex items-center justify-between flex-wrap gap-4",
+                      !metaImagesLoading && metaImages.every(img => img.url)
+                        ? "bg-green-50 border-green-200"
+                        : "bg-slate-50 border-slate-100",
+                    )}>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                          <Check size={18} className="text-white" />
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center",
+                          !metaImagesLoading && metaImages.every(img => img.url)
+                            ? "bg-green-500"
+                            : "bg-slate-300",
+                        )}>
+                          {metaImagesLoading ? (
+                            <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <Check size={18} className="text-white" />
+                          )}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 text-sm">Meta Ads to'plami tayyor</p>
+                          <p className="font-bold text-slate-900 text-sm">
+                            {metaImagesLoading ? "Rasmlar yaratilmoqda..." : "Meta Ads to'plami tayyor"}
+                          </p>
                           <p className="text-xs text-slate-500">3 rasm formati + 3 matn turi — to'liq kreativ to'plam</p>
                         </div>
                       </div>
-                      <button className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
+                      <button
+                        disabled={metaImagesLoading || !metaImages.every(img => img.url)}
+                        className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
                         <Download size={16} />
                         Eksport qilish
                       </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* ═══════════ SOTUVCHI ROBOT ═══════════ */}
+            {activeTab === "salesbot" && (
+              <motion.div
+                key="salesbot"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                {/* ── Hero Banner ── */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-orange-900 p-8 text-white">
+                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDE4YzEuNjU3IDAgMy0xLjM0MyAzLTNzLTEuMzQzLTMtMy0zLTMgMS4zNDMtMyAzIDEuMzQzIDMgMyAzem0xMiAxMmMxLjY1NyAwIDMtMS4zNDMgMy0zcy0xLjM0My0zLTMtMy0zIDEuMzQzLTMgMyAxLjM0MyAzIDMgM3oiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-50" />
+                  <div className="relative z-10 flex items-center gap-6">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+                      <Bot size={32} className="text-orange-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-black tracking-tight">Sotuvchi Robot</h2>
+                      <p className="text-sm text-white/60 mt-1">AI bilan ishlaydigan Telegram savdo boti — o'qiting, sozlang, natijalarni kuzating</p>
+                    </div>
+                    <div className="ml-auto flex items-center gap-2">
+                      {sbConnected ? (
+                        <span className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/20 border border-green-400/30 text-sm font-bold text-green-300">
+                          <Wifi size={14} /> Ulangan
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/20 border border-red-400/30 text-sm font-bold text-red-300">
+                          <WifiOff size={14} /> Ulanmagan
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Sub-tabs ── */}
+                <div className="flex gap-2 bg-white rounded-2xl border border-slate-100 p-1.5">
+                  {[
+                    { id: "brain" as const, icon: Brain, label: "Botni O'qitish" },
+                    { id: "action" as const, icon: Zap, label: "Avtomatik Sotish" },
+                    { id: "stats" as const, icon: BarChart3, label: "Statistika" },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSbTab(t.id)}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all",
+                        sbTab === t.id
+                          ? "bg-orange-500 text-white shadow-lg shadow-orange-200"
+                          : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                      )}
+                    >
+                      <t.icon size={16} />
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* ═══════ TAB: BRAIN ═══════ */}
+                {sbTab === "brain" && (
+                  <div className="space-y-6">
+                    {/* Token Connection */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-orange-50 rounded-xl"><Shield size={18} className="text-orange-500" /></div>
+                        <div>
+                          <h3 className="text-lg font-black text-slate-900">Bot Ulanishi</h3>
+                          <p className="text-xs text-slate-400">Telegram @BotFather dan olingan tokenni kiriting</p>
+                        </div>
+                      </div>
+
+                      {sbConnected && sbBotInfo ? (
+                        <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl border border-green-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                              <Bot size={20} className="text-green-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-green-800">@{sbBotInfo.username || "bot"}</p>
+                              <p className="text-xs text-green-600">Muvaffaqiyatli ulangan ✓</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleSbDisconnect}
+                            className="px-4 py-2 bg-red-50 text-red-500 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors"
+                          >
+                            Uzish
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex gap-3">
+                            <input
+                              type="password"
+                              placeholder="123456789:ABCdefGHIjklMNO..."
+                              value={sbBotToken}
+                              onChange={(e) => { setSbBotToken(e.target.value); setSbTokenError(""); }}
+                              className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:border-orange-300 focus:ring-2 focus:ring-orange-100 outline-none transition-all"
+                            />
+                            <button
+                              onClick={handleSbValidateToken}
+                              disabled={sbTokenValidating}
+                              className="px-6 py-3 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                              {sbTokenValidating ? <Loader2 size={14} className="animate-spin" /> : <Wifi size={14} />}
+                              Tekshirish
+                            </button>
+                          </div>
+                          {sbTokenError && (
+                            <p className="text-xs text-red-500 font-medium flex items-center gap-1">
+                              <AlertCircle size={12} /> {sbTokenError}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Knowledge Base */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-50 rounded-xl"><Brain size={18} className="text-blue-500" /></div>
+                        <div>
+                          <h3 className="text-lg font-black text-slate-900">Bilimlar Bazasi (RAG)</h3>
+                          <p className="text-xs text-slate-400">Mahsulotlar, narxlar va biznes haqida ma'lumot yuklang</p>
+                        </div>
+                      </div>
+
+                      {/* Upload File */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <label className="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 rounded-xl hover:border-orange-300 hover:bg-orange-50/30 cursor-pointer transition-all group">
+                          <Upload size={24} className="text-slate-400 group-hover:text-orange-500 transition-colors mb-2" />
+                          <span className="text-sm font-bold text-slate-600 group-hover:text-orange-600">Fayl yuklash</span>
+                          <span className="text-[10px] text-slate-400 mt-1">PDF, DOCX, TXT — 10MB gacha</span>
+                          <input
+                            type="file"
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            accept=".pdf,.docx,.doc,.txt"
+                            onChange={handleSbUploadFile}
+                            disabled={sbKnowledgeUploading}
+                          />
+                          {sbKnowledgeUploading && (
+                            <div className="absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center">
+                              <Loader2 size={24} className="animate-spin text-orange-500" />
+                            </div>
+                          )}
+                        </label>
+
+                        <div className="flex flex-col gap-2">
+                          <textarea
+                            placeholder="Mahsulotlar haqida matn yozing...&#10;Narxlar, tafsilotlar, FAQ va h.k."
+                            value={sbKnowledgeText}
+                            onChange={(e) => setSbKnowledgeText(e.target.value)}
+                            className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 outline-none"
+                            rows={4}
+                          />
+                          <button
+                            onClick={handleSbUploadText}
+                            disabled={sbKnowledgeUploading || !sbKnowledgeText.trim()}
+                            className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                          >
+                            <Plus size={14} /> Matn qo'shish
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Knowledge chunks list */}
+                      {sbKnowledgeChunks.length > 0 && (
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            Yuklangan ma'lumotlar ({sbKnowledgeChunks.length} bo'lak)
+                          </p>
+                          {sbKnowledgeChunks.map((chunk: any) => (
+                            <div
+                              key={chunk._id}
+                              className="flex items-start justify-between p-3 bg-slate-50 rounded-xl group"
+                            >
+                              <div className="flex-1 min-w-0">
+                                {chunk.fileName && (
+                                  <span className="text-[10px] font-bold text-blue-500 uppercase">{chunk.fileName}</span>
+                                )}
+                                <p className="text-xs text-slate-600 truncate mt-0.5">{chunk.content.slice(0, 120)}...</p>
+                              </div>
+                              <button
+                                onClick={() => handleSbDeleteChunk(chunk._id)}
+                                className="ml-3 p-1.5 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* System Prompt Editor */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-purple-50 rounded-xl"><MessageSquare size={18} className="text-purple-500" /></div>
+                        <div>
+                          <h3 className="text-lg font-black text-slate-900">Bot Shaxsiyati</h3>
+                          <p className="text-xs text-slate-400">Bot qanday muomala qilishi kerakligini belgilang</p>
+                        </div>
+                      </div>
+                      <textarea
+                        value={sbSystemPrompt}
+                        onChange={(e) => setSbSystemPrompt(e.target.value)}
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none focus:border-orange-300 focus:ring-2 focus:ring-orange-100 outline-none"
+                        rows={5}
+                        placeholder="Masalan: Siz xushmuomala sotuvchisiz..."
+                      />
+                      <button
+                        onClick={handleSbSaveSettings}
+                        disabled={sbSettingsSaving}
+                        className="px-6 py-3 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {sbSettingsSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        Saqlash
+                      </button>
+                    </div>
+
+                    {/* Test Chat */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-green-50 rounded-xl"><Send size={18} className="text-green-500" /></div>
+                        <div>
+                          <h3 className="text-lg font-black text-slate-900">Test Suhbat</h3>
+                          <p className="text-xs text-slate-400">Botni sinab ko'ring — bilimlar bazasi asosida javob beradi</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        <input
+                          type="text"
+                          placeholder="Masalan: Narxlaringiz qancha?"
+                          value={sbTestMessage}
+                          onChange={(e) => setSbTestMessage(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && handleSbTestChat()}
+                          className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:border-orange-300 focus:ring-2 focus:ring-orange-100 outline-none"
+                        />
+                        <button
+                          onClick={handleSbTestChat}
+                          disabled={sbTestLoading || !sbTestMessage.trim()}
+                          className="px-6 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {sbTestLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                          Yuborish
+                        </button>
+                      </div>
+                      {sbTestResponse && (
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                          <p className="text-[10px] font-bold text-orange-500 uppercase mb-2">Bot javobi:</p>
+                          <p className="text-sm text-slate-700 whitespace-pre-wrap">{sbTestResponse}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ═══════ TAB: ACTION ═══════ */}
+                {sbTab === "action" && (
+                  <div className="space-y-6">
+                    {/* Re-engagement */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-blue-50 rounded-xl"><RefreshCw size={18} className="text-blue-500" /></div>
+                          <div>
+                            <h3 className="text-lg font-black text-slate-900">Qayta Bog'lanish (Retargeting)</h3>
+                            <p className="text-xs text-slate-400">Xarid qilmagan mijozlarga avtomatik xabar yuborish</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setSbRetargetEnabled(!sbRetargetEnabled)}
+                          className={cn(
+                            "relative w-12 h-7 rounded-full transition-colors",
+                            sbRetargetEnabled ? "bg-orange-500" : "bg-slate-200"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                            sbRetargetEnabled ? "left-6" : "left-1"
+                          )} />
+                        </button>
+                      </div>
+
+                      {sbRetargetEnabled && (
+                        <div className="space-y-4 pl-14">
+                          <div className="flex items-center gap-4">
+                            <label className="text-sm font-bold text-slate-600 whitespace-nowrap">Kutish muddati:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={1}
+                                max={90}
+                                value={sbRetargetDays}
+                                onChange={(e) => setSbRetargetDays(parseInt(e.target.value) || 7)}
+                                className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-center font-bold"
+                              />
+                              <span className="text-sm text-slate-500">kun</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-sm font-bold text-slate-600 block mb-2">Xabar matni:</label>
+                            <textarea
+                              value={sbRetargetMessage}
+                              onChange={(e) => setSbRetargetMessage(e.target.value)}
+                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none"
+                              rows={3}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Loyalty System */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-amber-50 rounded-xl"><Gift size={18} className="text-amber-500" /></div>
+                          <div>
+                            <h3 className="text-lg font-black text-slate-900">Sodiq Mijozlar Dasturi</h3>
+                            <p className="text-xs text-slate-400">Eng faol 10% mijozlarga avtomatik chegirma kod yuborish</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setSbLoyaltyEnabled(!sbLoyaltyEnabled)}
+                          className={cn(
+                            "relative w-12 h-7 rounded-full transition-colors",
+                            sbLoyaltyEnabled ? "bg-orange-500" : "bg-slate-200"
+                          )}
+                        >
+                          <div className={cn(
+                            "absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform",
+                            sbLoyaltyEnabled ? "left-6" : "left-1"
+                          )} />
+                        </button>
+                      </div>
+
+                      {sbLoyaltyEnabled && (
+                        <div className="space-y-4 pl-14">
+                          <div className="flex items-center gap-4">
+                            <label className="text-sm font-bold text-slate-600 whitespace-nowrap">Chegirma foizi:</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={sbLoyaltyDiscount}
+                                onChange={(e) => setSbLoyaltyDiscount(parseInt(e.target.value) || 10)}
+                                className="w-20 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-center font-bold"
+                              />
+                              <span className="text-sm text-slate-500">%</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-sm font-bold text-slate-600 block mb-2">Xabar matni:</label>
+                            <textarea
+                              value={sbLoyaltyMessage}
+                              onChange={(e) => setSbLoyaltyMessage(e.target.value)}
+                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none"
+                              rows={3}
+                            />
+                            <p className="text-[10px] text-slate-400 mt-1">{"{discount}"} — chegirma foizi avtomatik qo'yiladi</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Smart FAQ */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2.5 bg-green-50 rounded-xl"><MessageSquare size={18} className="text-green-500" /></div>
+                        <div>
+                          <h3 className="text-lg font-black text-slate-900">Aqlli Javob Berish</h3>
+                          <p className="text-xs text-slate-400">Bot bilimlar bazasi asosida FAQ savollarga javob beradi</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {[
+                          { icon: Brain, title: "RAG Qidiruv", desc: "Bilimlar bazasidan kontekst topadi" },
+                          { icon: MessageSquare, title: "AI Javob", desc: "GPT-4o-mini bilan javob generatsiya" },
+                          { icon: Activity, title: "Logga Yozish", desc: "Har bir suhbatni statistikada saqlaydi" },
+                        ].map((item, i) => (
+                          <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <item.icon size={18} className="text-slate-500 mb-2" />
+                            <p className="text-sm font-bold text-slate-800">{item.title}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">{item.desc}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Save all settings */}
+                    <button
+                      onClick={handleSbSaveSettings}
+                      disabled={sbSettingsSaving}
+                      className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-orange-100 hover:bg-orange-600 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+                    >
+                      {sbSettingsSaving ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+                      Barcha Sozlamalarni Saqlash
+                    </button>
+                  </div>
+                )}
+
+                {/* ═══════ TAB: STATS ═══════ */}
+                {sbTab === "stats" && (
+                  <div className="space-y-6">
+                    {/* KPI Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {[
+                        {
+                          label: "Jami Mijozlar",
+                          value: sbAnalytics?.uniqueCustomers || 0,
+                          icon: Users,
+                          color: "bg-blue-50 text-blue-500 border-blue-100",
+                        },
+                        {
+                          label: "Qayta Bog'lanishlar",
+                          value: sbAnalytics?.retargets || 0,
+                          icon: RefreshCw,
+                          color: "bg-orange-50 text-orange-500 border-orange-100",
+                        },
+                        {
+                          label: "Jami Suhbatlar",
+                          value: sbAnalytics?.totalInteractions || 0,
+                          icon: MessageSquare,
+                          color: "bg-green-50 text-green-500 border-green-100",
+                        },
+                        {
+                          label: "Muvaffaqiyat",
+                          value: `${sbAnalytics?.conversionRate || 0}%`,
+                          icon: Target,
+                          color: "bg-purple-50 text-purple-500 border-purple-100",
+                        },
+                      ].map((kpi, i) => (
+                        <div
+                          key={i}
+                          className={`p-5 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow`}
+                        >
+                          <div className={`inline-flex p-2.5 rounded-xl ${kpi.color} border mb-3`}>
+                            <kpi.icon size={18} />
+                          </div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{kpi.label}</p>
+                          <p className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
+                            {typeof kpi.value === "number" ? formatNumber(kpi.value) : kpi.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Activity Chart */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-slate-50 rounded-xl"><Activity size={18} className="text-slate-500" /></div>
+                          <div>
+                            <h3 className="text-lg font-black text-slate-900">Faollik Grafigi</h3>
+                            <p className="text-xs text-slate-400">Oxirgi 7 kun ichida bot suhbatlari</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleSbLoadStats}
+                          disabled={sbStatsLoading}
+                          className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                          <RefreshCw size={14} className={sbStatsLoading ? "animate-spin" : ""} /> Yangilash
+                        </button>
+                      </div>
+                      {sbAnalytics?.activity && sbAnalytics.activity.length > 0 ? (
+                        <ResponsiveContainer width="100%" height={240}>
+                          <AreaChart data={sbAnalytics.activity}>
+                            <defs>
+                              <linearGradient id="sbGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#f97316" stopOpacity={0.2} />
+                                <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                            <XAxis dataKey="day" tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                            <YAxis tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                            <Tooltip
+                              contentStyle={{
+                                borderRadius: 12,
+                                border: "1px solid #e2e8f0",
+                                fontSize: 12,
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                              }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="count"
+                              name="Suhbatlar"
+                              stroke="#f97316"
+                              strokeWidth={2.5}
+                              fill="url(#sbGrad)"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-60 flex items-center justify-center text-slate-300">
+                          {sbStatsLoading ? (
+                            <Loader2 size={32} className="animate-spin" />
+                          ) : (
+                            <div className="text-center space-y-2">
+                              <BarChart3 size={40} className="mx-auto text-slate-200" />
+                              <p className="text-sm text-slate-400">Hozircha ma'lumot yo'q</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Live Feed */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2.5 bg-red-50 rounded-xl"><Radio size={18} className="text-red-500" /></div>
+                        <div>
+                          <h3 className="text-lg font-black text-slate-900">Jonli Oqim</h3>
+                          <p className="text-xs text-slate-400">Botning oxirgi 5 ta harakati</p>
+                        </div>
+                        <div className="ml-auto flex items-center gap-2">
+                          <CircleDot size={10} className="text-red-500 animate-pulse" />
+                          <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Live</span>
+                        </div>
+                      </div>
+
+                      {sbLogs.length > 0 ? (
+                        <div className="space-y-3">
+                          {sbLogs.map((log: any, i: number) => (
+                            <div key={i} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl">
+                              <div className={cn(
+                                "mt-0.5 w-2 h-2 rounded-full shrink-0",
+                                log.type === "faq" ? "bg-green-400" :
+                                log.type === "retarget" ? "bg-blue-400" :
+                                log.type === "loyalty" ? "bg-amber-400" :
+                                "bg-slate-300"
+                              )} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-slate-700">
+                                    {log.type === "faq" ? "FAQ javob" :
+                                     log.type === "retarget" ? "Qayta bog'lanish" :
+                                     log.type === "loyalty" ? "Sodiq mijoz" :
+                                     "Xabar"}
+                                  </span>
+                                  {log.username && (
+                                    <span className="text-[10px] text-slate-400">@{log.username}</span>
+                                  )}
+                                  <span className="text-[10px] text-slate-300 ml-auto">
+                                    {new Date(log.createdAt).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" })}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500 truncate mt-0.5">
+                                  {log.userMessage ? `"${log.userMessage}"` : "—"}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center text-slate-300">
+                          {sbStatsLoading ? (
+                            <Loader2 size={24} className="animate-spin mx-auto" />
+                          ) : (
+                            <>
+                              <Radio size={32} className="mx-auto mb-2 text-slate-200" />
+                              <p className="text-sm text-slate-400">Hozircha loglar yo'q</p>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
