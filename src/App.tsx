@@ -61,16 +61,15 @@ import {
   ArrowUpDown,
   Instagram,
   Youtube,
+  Mail,
+  Lock,
+  EyeOff,
+  UserPlus,
+  ArrowLeft,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Markdown from "react-markdown";
-import {
-  signInWithPopup,
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  signOut,
-  User as FirebaseUser,
-} from "firebase/auth";
+// Firebase — faqat Firestore (leads, influencers) uchun kerak
 import {
   collection,
   onSnapshot,
@@ -80,11 +79,12 @@ import {
   limit,
   Timestamp,
   serverTimestamp,
-  setDoc,
   doc,
-  getDoc,
 } from "firebase/firestore";
-import { auth, db, handleFirestoreError, OperationType } from "./firebase";
+import { db, handleFirestoreError, OperationType } from "./firebase";
+
+// Auth API — Backend JWT bilan ishlash
+const AUTH_API = "https://apibusinesscopilot.masatov.uz/api/auth";
 
 import {
   LineChart,
@@ -266,6 +266,17 @@ interface Message {
   text: string;
 }
 
+// Foydalanuvchi interfeysi (Firebase o'rniga backend JWT dan keladigan ma'lumotlar)
+interface AppUser {
+  uid: string; // Backend'dagi user._id
+  displayName: string; // Ism
+  email: string; // Email
+  phone?: string; // Telefon raqami
+  photoURL: string; // Profil rasmi
+  role?: string; // user | admin | manager
+  phoneVerified?: boolean;
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
@@ -275,7 +286,7 @@ export default function App() {
 }
 
 function AppContent() {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -357,105 +368,66 @@ function AppContent() {
   >(null);
   const [marketAnalysisLoading, setMarketAnalysisLoading] = useState(false);
 
-  // Auth Listener
+  // ============================================
+  // LOGIN FORM STATE
+  // ============================================
+  const [loginTab, setLoginTab] = useState<"email" | "phone">("email");
+  const [loginMode, setLoginMode] = useState<"login" | "register">("login");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginName, setLoginName] = useState("");
+  const [loginPhone, setLoginPhone] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // OTP countdown timer
   useEffect(() => {
-    // 1. URL'dan Google OAuth token va user ma'lumotlarini tekshirish
-    //    Backend Google callback'dan qaytarganida URL da ?token=...&user=... bo'ladi
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromUrl = urlParams.get("token");
-    const userFromUrl = urlParams.get("user");
-    const errorFromUrl = urlParams.get("error");
+    if (otpCountdown <= 0) return;
+    const timer = setTimeout(() => setOtpCountdown(otpCountdown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [otpCountdown]);
 
-    // Agar URL'da xatolik parametri bo'lsa — konsolga chiqarish
-    if (errorFromUrl) {
-      console.error("Google OAuth xatosi:", errorFromUrl);
-      // URL'ni tozalash (parametrlarni olib tashlash)
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    // Agar URL'da token va user ma'lumotlari bo'lsa — Google OAuth muvaffaqiyatli
-    if (tokenFromUrl && userFromUrl) {
-      try {
-        const parsedUser = JSON.parse(decodeURIComponent(userFromUrl));
-        // JWT tokenni localStorage'ga saqlash — keyingi so'rovlarda ishlatiladi
-        localStorage.setItem("auth-token", tokenFromUrl);
-        // Foydalanuvchi ma'lumotlarini saqlash
-        localStorage.setItem("auth-user", JSON.stringify(parsedUser));
-
-        // FirebaseUser formatiga moslashtirish (mavjud kod bilan ishlashi uchun)
-        const mockUser = {
-          uid: parsedUser.id,
-          displayName: parsedUser.name,
-          email: parsedUser.email,
-          photoURL: parsedUser.photoURL || "",
-        } as FirebaseUser;
-
-        setUser(mockUser);
-        setIsAuthReady(true);
-
-        // URL'ni tozalash (token va user parametrlarini olib tashlash — xavfsizlik uchun)
-        window.history.replaceState(
-          {},
-          document.title,
-          window.location.pathname,
-        );
-        return; // Boshqa tekshiruvlar kerak emas
-      } catch (e) {
-        console.error("URL'dan user ma'lumotlarini parse qilishda xatolik:", e);
-      }
-    }
-
-    // 2. localStorage'dan saqlangan auth-user ni tekshirish (sahifa yangilanganda)
+  // Auth Listener — localStorage'dan foydalanuvchini tiklash
+  useEffect(() => {
+    // 1. localStorage'dan saqlangan auth-user ni tekshirish (sahifa yangilanganda)
     const savedAuthUser = localStorage.getItem("auth-user");
     const savedToken = localStorage.getItem("auth-token");
     if (savedAuthUser && savedToken) {
       try {
         const parsedUser = JSON.parse(savedAuthUser);
-        const mockUser = {
-          uid: parsedUser.id,
-          displayName: parsedUser.name,
-          email: parsedUser.email,
+        setUser({
+          uid: parsedUser.id || parsedUser.uid,
+          displayName: parsedUser.name || parsedUser.displayName || "",
+          email: parsedUser.email || "",
+          phone: parsedUser.phone || "",
           photoURL: parsedUser.photoURL || "",
-        } as FirebaseUser;
-        setUser(mockUser);
+          role: parsedUser.role || "user",
+          phoneVerified: parsedUser.phoneVerified || false,
+        });
         setIsAuthReady(true);
         return;
       } catch (e) {
-        // Noto'g'ri ma'lumot bo'lsa — tozalash
         localStorage.removeItem("auth-user");
         localStorage.removeItem("auth-token");
       }
     }
 
-    // 3. Demo user ni localStorage dan tekshirish
+    // 2. Demo user ni tekshirish
     const savedDemo = localStorage.getItem("demo-user");
     if (savedDemo) {
-      const mockUser = JSON.parse(savedDemo) as FirebaseUser;
-      setUser(mockUser);
-      setIsAuthReady(true);
-    }
-
-    // 4. Firebase Auth listener (eski usul — saqlab qolindi orqaga moslik uchun)
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        // Sync user to Firestore
-        const userRef = doc(db, "users", u.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
-            uid: u.uid,
-            name: u.displayName || "Noma'lum",
-            email: u.email || "",
-            createdAt: serverTimestamp(),
-          });
-        }
+      try {
+        const mockUser = JSON.parse(savedDemo) as AppUser;
+        setUser(mockUser);
+      } catch (e) {
         localStorage.removeItem("demo-user");
       }
-      setUser(u);
-      setIsAuthReady(true);
-    });
-    return () => unsubscribe();
+    }
+
+    setIsAuthReady(true);
   }, []);
 
   // Firestore Listeners
@@ -632,31 +604,140 @@ function AppContent() {
     };
   }, [isAuthReady, user]);
 
-  const handleLogin = async () => {
-    /**
-     * Google orqali kirish — Backend'ga yo'naltirish
-     *
-     * Foydalanuvchi "Google orqali kirish" tugmasini bosganda:
-     * 1. Brauzer backend'ning /api/auth/google manzilga o'tadi
-     * 2. Backend (Passport.js) Google login sahifasiga redirect qiladi
-     * 3. Foydalanuvchi Google'da tizimga kiradi
-     * 4. Google backend'ning /api/auth/google/callback ga qaytaradi
-     * 5. Backend JWT token yaratib, frontend URL ga redirect qiladi:
-     *    https://business-copilot.masatov.uz?token=...&user=...
-     * 6. Frontend useEffect da URL'dan token va user ni oladi va saqlaydi
-     */
-    const BACKEND_AUTH_URL =
-      "https://apibusinesscopilot.masatov.uz/api/auth/google";
-    window.location.href = BACKEND_AUTH_URL;
+  // ============================================
+  // AUTH HANDLERS — Email/Parol va Telefon/OTP
+  // ============================================
+
+  /** Muvaffaqiyatli auth dan keyin — token va user ni saqlash */
+  const handleAuthSuccess = (token: string, userData: any) => {
+    localStorage.setItem("auth-token", token);
+    localStorage.setItem("auth-user", JSON.stringify(userData));
+    setUser({
+      uid: userData.id,
+      displayName: userData.name || "",
+      email: userData.email || "",
+      phone: userData.phone || "",
+      photoURL: userData.photoURL || "",
+      role: userData.role || "user",
+      phoneVerified: userData.phoneVerified || false,
+    });
+    setAuthError(null);
   };
 
+  /** EMAIL + PAROL orqali kirish */
+  const handleEmailLogin = async () => {
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      setAuthError("Email va parolni kiriting.");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${AUTH_API}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+      const data = await res.json();
+      if (!data.status) throw new Error(data.message);
+      handleAuthSuccess(data.data.token, data.data.user);
+    } catch (error: any) {
+      setAuthError(error.message || "Kirishda xatolik yuz berdi.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  /** EMAIL + PAROL orqali ro'yxatdan o'tish */
+  const handleEmailRegister = async () => {
+    if (!loginName.trim() || !loginEmail.trim() || !loginPassword.trim()) {
+      setAuthError("Ism, email va parolni kiriting.");
+      return;
+    }
+    if (loginPassword.length < 6) {
+      setAuthError("Parol kamida 6 ta belgidan iborat bo'lishi kerak.");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${AUTH_API}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: loginName,
+          email: loginEmail,
+          password: loginPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!data.status) throw new Error(data.message);
+      handleAuthSuccess(data.data.token, data.data.user);
+    } catch (error: any) {
+      setAuthError(error.message || "Ro'yxatdan o'tishda xatolik.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  /** TELEFON RAQAMIGA OTP KOD YUBORISH */
+  const handleSendOTP = async () => {
+    if (!loginPhone.trim()) {
+      setAuthError("Telefon raqamini kiriting.");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${AUTH_API}/send-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: loginPhone }),
+      });
+      const data = await res.json();
+      if (!data.status) throw new Error(data.message);
+      setOtpSent(true);
+      setOtpCountdown(120); // 2 daqiqa kutish
+      setAuthError(null);
+    } catch (error: any) {
+      setAuthError(error.message || "SMS yuborishda xatolik.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  /** OTP KODNI TEKSHIRISH VA KIRISH */
+  const handleVerifyOTP = async () => {
+    if (!otpCode.trim() || otpCode.length !== 6) {
+      setAuthError("6 xonali tasdiqlash kodini kiriting.");
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${AUTH_API}/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: loginPhone, code: otpCode }),
+      });
+      const data = await res.json();
+      if (!data.status) throw new Error(data.message);
+      handleAuthSuccess(data.data.token, data.data.user);
+    } catch (error: any) {
+      setAuthError(error.message || "Kod tekshirishda xatolik.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  /** DEMO REJIM */
   const handleDemoLogin = () => {
-    const mockUser = {
+    const mockUser: AppUser = {
       uid: "demo-user-123",
       displayName: "Demo Foydalanuvchi",
       email: "demo@uzmarketing.ai",
       photoURL: "https://picsum.photos/seed/demo/200/200",
-    } as FirebaseUser;
+    };
     setUser(mockUser);
     setIsAuthReady(true);
     localStorage.setItem("demo-user", JSON.stringify(mockUser));
@@ -669,26 +750,21 @@ function AppContent() {
       setTimeout(() => setSaveStatus(null), 3000);
     }, 1000);
   };
-  const handleLogout = async () => {
-    // Demo user uchun
-    if (user?.uid === "demo-user-123") {
-      setUser(null);
-      localStorage.removeItem("demo-user");
-      return;
-    }
 
-    // Google OAuth orqali kirgan foydalanuvchi uchun — tokenlarni tozalash
+  /** CHIQISH */
+  const handleLogout = () => {
     localStorage.removeItem("auth-token");
     localStorage.removeItem("auth-user");
+    localStorage.removeItem("demo-user");
     setUser(null);
-
-    // Firebase orqali ham chiqish (agar Firebase bilan kirgan bo'lsa)
-    try {
-      await signOut(auth);
-    } catch (error) {
-      // Firebase'dan chiqishda xatolik bo'lsa ham davom etamiz
-      console.error("Logout xatosi:", error);
-    }
+    // Login form ni tozalash
+    setLoginEmail("");
+    setLoginPassword("");
+    setLoginName("");
+    setLoginPhone("");
+    setOtpCode("");
+    setOtpSent(false);
+    setAuthError(null);
   };
 
   const handleGeneratePlan = async () => {
@@ -1011,36 +1087,315 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-8">
-        <div className="max-w-md w-full bg-white p-12 rounded-3xl shadow-2xl text-center space-y-8 border border-slate-100">
-          <div className="w-20 h-20 bg-orange-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg transform rotate-12">
-            <TrendingUp className="text-white" size={40} />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-orange-50 p-4">
+        <div className="max-w-md w-full bg-white p-8 sm:p-10 rounded-3xl shadow-2xl border border-slate-100">
+          {/* Logo va sarlavha */}
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-orange-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg transform rotate-12 mb-4">
+              <TrendingUp className="text-white" size={32} />
+            </div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
               BUSINESS COPILOT
             </h1>
-            <p className="text-slate-500 font-medium">
-              Marketingni avtomatlashtirish platformasiga xush kelibsiz
+            <p className="text-slate-500 text-sm mt-1">
+              Marketingni avtomatlashtirish platformasi
             </p>
           </div>
-          <div className="space-y-4">
+
+          {/* Tab switcher — Email yoki Telefon */}
+          <div className="flex bg-slate-100 rounded-xl p-1 mb-6">
             <button
-              onClick={handleLogin}
-              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-slate-800 transition-all shadow-xl hover:shadow-slate-200 active:scale-95"
+              onClick={() => {
+                setLoginTab("email");
+                setAuthError(null);
+              }}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                loginTab === "email"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
             >
-              <LogIn size={20} />
-              Google orqali kirish
+              <Mail size={16} />
+              Email
             </button>
             <button
-              onClick={handleDemoLogin}
-              className="w-full py-4 bg-white text-slate-900 border-2 border-slate-200 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+              onClick={() => {
+                setLoginTab("phone");
+                setAuthError(null);
+              }}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                loginTab === "phone"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
             >
-              <Users size={20} />
-              Demo rejimida ko'rish
+              <Phone size={16} />
+              Telefon
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">
+
+          {/* Xatolik xabari */}
+          {authError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm mb-4 flex items-start gap-2">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" />
+              <span>{authError}</span>
+            </div>
+          )}
+
+          {/* ========== EMAIL TAB ========== */}
+          {loginTab === "email" && (
+            <div className="space-y-4">
+              {/* Login / Register toggle */}
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <span className="text-slate-500">
+                  {loginMode === "login"
+                    ? "Hisobingiz yo'qmi?"
+                    : "Hisobingiz bormi?"}
+                </span>
+                <button
+                  onClick={() => {
+                    setLoginMode(loginMode === "login" ? "register" : "login");
+                    setAuthError(null);
+                  }}
+                  className="text-orange-500 font-bold hover:underline"
+                >
+                  {loginMode === "login" ? "Ro'yxatdan o'tish" : "Kirish"}
+                </button>
+              </div>
+
+              {/* Ism (faqat register da) */}
+              {loginMode === "register" && (
+                <div className="relative">
+                  <UserPlus
+                    size={18}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Ismingiz"
+                    value={loginName}
+                    onChange={(e) => setLoginName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              {/* Email */}
+              <div className="relative">
+                <Mail
+                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="email"
+                  placeholder="Email manzilingiz"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" &&
+                    (loginMode === "login"
+                      ? handleEmailLogin()
+                      : handleEmailRegister())
+                  }
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Parol */}
+              <div className="relative">
+                <Lock
+                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Parolingiz"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" &&
+                    (loginMode === "login"
+                      ? handleEmailLogin()
+                      : handleEmailRegister())
+                  }
+                  className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+                <button
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+
+              {/* Kirish / Ro'yxatdan o'tish tugmasi */}
+              <button
+                onClick={
+                  loginMode === "login" ? handleEmailLogin : handleEmailRegister
+                }
+                disabled={authLoading}
+                className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg active:scale-[0.98] disabled:opacity-60"
+              >
+                {authLoading ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : loginMode === "login" ? (
+                  <>
+                    <LogIn size={18} /> Kirish
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={18} /> Ro'yxatdan o'tish
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* ========== PHONE TAB ========== */}
+          {loginTab === "phone" && (
+            <div className="space-y-4">
+              {!otpSent ? (
+                <>
+                  {/* Telefon raqami kiritish */}
+                  <p className="text-center text-slate-500 text-sm">
+                    Telefon raqamingizga tasdiqlash kodi yuboriladi
+                  </p>
+                  <div className="relative">
+                    <Phone
+                      size={18}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                    <span className="absolute left-10 top-1/2 -translate-y-1/2 text-slate-600 text-sm font-medium">
+                      +998
+                    </span>
+                    <input
+                      type="tel"
+                      placeholder="90 123 45 67"
+                      value={loginPhone}
+                      onChange={(e) =>
+                        setLoginPhone(
+                          e.target.value.replace(/\D/g, "").slice(0, 9),
+                        )
+                      }
+                      onKeyDown={(e) => e.key === "Enter" && handleSendOTP()}
+                      className="w-full pl-[5.5rem] pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      maxLength={9}
+                    />
+                  </div>
+
+                  {/* OTP yuborish tugmasi */}
+                  <button
+                    onClick={handleSendOTP}
+                    disabled={authLoading || loginPhone.length < 9}
+                    className="w-full py-3.5 bg-orange-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-orange-600 transition-all shadow-lg active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {authLoading ? (
+                      <Loader2 size={20} className="animate-spin" />
+                    ) : (
+                      <>
+                        <Send size={18} /> Kod yuborish
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* OTP kod kiritish */}
+                  <div className="text-center space-y-1">
+                    <p className="text-slate-600 text-sm">
+                      <span className="font-bold text-slate-900">
+                        +998{loginPhone}
+                      </span>{" "}
+                      raqamiga kod yuborildi
+                    </p>
+                    <p className="text-slate-400 text-xs">
+                      {otpCountdown > 0
+                        ? `Qayta yuborish: ${Math.floor(otpCountdown / 60)}:${(otpCountdown % 60).toString().padStart(2, "0")}`
+                        : "Vaqt tugadi"}
+                    </p>
+                  </div>
+
+                  {/* 6 xonali OTP input */}
+                  <div className="relative">
+                    <Lock
+                      size={18}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                      type="text"
+                      placeholder="6 xonali kod"
+                      value={otpCode}
+                      onChange={(e) =>
+                        setOtpCode(
+                          e.target.value.replace(/\D/g, "").slice(0, 6),
+                        )
+                      }
+                      onKeyDown={(e) => e.key === "Enter" && handleVerifyOTP()}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-center tracking-[0.5em] font-bold text-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      maxLength={6}
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Tasdiqlash tugmasi */}
+                  <button
+                    onClick={handleVerifyOTP}
+                    disabled={authLoading || otpCode.length !== 6}
+                    className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {authLoading ? (
+                      <Loader2 size={20} className="animate-spin" />
+                    ) : (
+                      <>
+                        <CheckCircle size={18} /> Tasdiqlash
+                      </>
+                    )}
+                  </button>
+
+                  {/* Orqaga qaytish va qayta yuborish */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        setOtpSent(false);
+                        setOtpCode("");
+                        setAuthError(null);
+                      }}
+                      className="text-slate-500 text-sm flex items-center gap-1 hover:text-slate-700"
+                    >
+                      <ArrowLeft size={14} /> Orqaga
+                    </button>
+                    {otpCountdown <= 0 && (
+                      <button
+                        onClick={handleSendOTP}
+                        disabled={authLoading}
+                        className="text-orange-500 text-sm font-bold hover:underline"
+                      >
+                        Qayta yuborish
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Ajratuvchi chiziq */}
+          <div className="flex items-center gap-3 my-6">
+            <div className="flex-1 h-px bg-slate-200"></div>
+            <span className="text-xs text-slate-400 font-medium">yoki</span>
+            <div className="flex-1 h-px bg-slate-200"></div>
+          </div>
+
+          {/* Demo rejim tugmasi */}
+          <button
+            onClick={handleDemoLogin}
+            className="w-full py-3 bg-white text-slate-700 border-2 border-slate-200 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all text-sm active:scale-[0.98]"
+          >
+            <Users size={16} />
+            Demo rejimida ko'rish
+          </button>
+
+          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest text-center mt-4">
             Xavfsiz va tezkor kirish
           </p>
         </div>
@@ -1387,317 +1742,611 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
               </motion.div>
             )}
 
-            {activeTab === "influencers" && (() => {
-              // --- Mock Influencer Marketplace Data ---
-              const MOCK_INFLUENCERS = [
-                { id: "m1", name: "Munisa Rizayeva", username: "@munisa_rizayeva", avatar: "https://i.pravatar.cc/300?img=1", platform: ["instagram", "telegram", "youtube"], followers: 5200000, engagement: 4.8, price_per_post: 3500000, niche: "lifestyle", location: "Toshkent", contact: { telegram: "@munisa_agent", phone: "+998 90 123 45 67" }, verified: true, top: true, promoCode: "MUNISA10", conversions: 120, revenue: 15000000 },
-                { id: "m2", name: "Shahzoda", username: "@shahzoda_official", avatar: "https://i.pravatar.cc/300?img=5", platform: ["instagram", "youtube", "tiktok"], followers: 4500000, engagement: 5.2, price_per_post: 4000000, niche: "lifestyle", location: "Toshkent", contact: { telegram: "@shahzoda_pr", agent: "Creative Agency UZ" }, verified: true, top: true, promoCode: "SHAHZODA15", conversions: 85, revenue: 9000000 },
-                { id: "m3", name: "Dilshod Mirzamuratov", username: "@dilshod_tech", avatar: "https://i.pravatar.cc/300?img=12", platform: ["youtube", "telegram"], followers: 890000, engagement: 6.1, price_per_post: 1500000, niche: "tech", location: "Toshkent", contact: { telegram: "@dilshod_dm" }, verified: true, top: false, promoCode: "", conversions: 45, revenue: 3200000 },
-                { id: "m4", name: "Nodira Karimova", username: "@nodira_food", avatar: "https://i.pravatar.cc/300?img=9", platform: ["instagram", "tiktok"], followers: 320000, engagement: 7.3, price_per_post: 800000, niche: "food", location: "Samarqand", contact: { phone: "+998 93 456 78 90" }, verified: false, top: false, promoCode: "", conversions: 30, revenue: 1500000 },
-                { id: "m5", name: "Akbar Rakhimov", username: "@akbar_business", avatar: "https://i.pravatar.cc/300?img=15", platform: ["telegram", "youtube"], followers: 1100000, engagement: 3.9, price_per_post: 2000000, niche: "business", location: "Toshkent", contact: { telegram: "@akbar_biz", agent: "BizReach Agency" }, verified: true, top: false, promoCode: "", conversions: 60, revenue: 5500000 },
-                { id: "m6", name: "Zulfiya Hamidova", username: "@zulfiya_edu", avatar: "https://i.pravatar.cc/300?img=25", platform: ["youtube", "telegram", "instagram"], followers: 750000, engagement: 5.8, price_per_post: 1200000, niche: "education", location: "Buxoro", contact: { telegram: "@zulfiya_contact", phone: "+998 97 111 22 33" }, verified: false, top: false, promoCode: "", conversions: 22, revenue: 1800000 },
-              ];
+            {activeTab === "influencers" &&
+              (() => {
+                // --- Mock Influencer Marketplace Data ---
+                const MOCK_INFLUENCERS = [
+                  {
+                    id: "m1",
+                    name: "Munisa Rizayeva",
+                    username: "@munisa_rizayeva",
+                    avatar: "https://i.pravatar.cc/300?img=1",
+                    platform: ["instagram", "telegram", "youtube"],
+                    followers: 5200000,
+                    engagement: 4.8,
+                    price_per_post: 3500000,
+                    niche: "lifestyle",
+                    location: "Toshkent",
+                    contact: {
+                      telegram: "@munisa_agent",
+                      phone: "+998 90 123 45 67",
+                    },
+                    verified: true,
+                    top: true,
+                    promoCode: "MUNISA10",
+                    conversions: 120,
+                    revenue: 15000000,
+                  },
+                  {
+                    id: "m2",
+                    name: "Shahzoda",
+                    username: "@shahzoda_official",
+                    avatar: "https://i.pravatar.cc/300?img=5",
+                    platform: ["instagram", "youtube", "tiktok"],
+                    followers: 4500000,
+                    engagement: 5.2,
+                    price_per_post: 4000000,
+                    niche: "lifestyle",
+                    location: "Toshkent",
+                    contact: {
+                      telegram: "@shahzoda_pr",
+                      agent: "Creative Agency UZ",
+                    },
+                    verified: true,
+                    top: true,
+                    promoCode: "SHAHZODA15",
+                    conversions: 85,
+                    revenue: 9000000,
+                  },
+                  {
+                    id: "m3",
+                    name: "Dilshod Mirzamuratov",
+                    username: "@dilshod_tech",
+                    avatar: "https://i.pravatar.cc/300?img=12",
+                    platform: ["youtube", "telegram"],
+                    followers: 890000,
+                    engagement: 6.1,
+                    price_per_post: 1500000,
+                    niche: "tech",
+                    location: "Toshkent",
+                    contact: { telegram: "@dilshod_dm" },
+                    verified: true,
+                    top: false,
+                    promoCode: "",
+                    conversions: 45,
+                    revenue: 3200000,
+                  },
+                  {
+                    id: "m4",
+                    name: "Nodira Karimova",
+                    username: "@nodira_food",
+                    avatar: "https://i.pravatar.cc/300?img=9",
+                    platform: ["instagram", "tiktok"],
+                    followers: 320000,
+                    engagement: 7.3,
+                    price_per_post: 800000,
+                    niche: "food",
+                    location: "Samarqand",
+                    contact: { phone: "+998 93 456 78 90" },
+                    verified: false,
+                    top: false,
+                    promoCode: "",
+                    conversions: 30,
+                    revenue: 1500000,
+                  },
+                  {
+                    id: "m5",
+                    name: "Akbar Rakhimov",
+                    username: "@akbar_business",
+                    avatar: "https://i.pravatar.cc/300?img=15",
+                    platform: ["telegram", "youtube"],
+                    followers: 1100000,
+                    engagement: 3.9,
+                    price_per_post: 2000000,
+                    niche: "business",
+                    location: "Toshkent",
+                    contact: {
+                      telegram: "@akbar_biz",
+                      agent: "BizReach Agency",
+                    },
+                    verified: true,
+                    top: false,
+                    promoCode: "",
+                    conversions: 60,
+                    revenue: 5500000,
+                  },
+                  {
+                    id: "m6",
+                    name: "Zulfiya Hamidova",
+                    username: "@zulfiya_edu",
+                    avatar: "https://i.pravatar.cc/300?img=25",
+                    platform: ["youtube", "telegram", "instagram"],
+                    followers: 750000,
+                    engagement: 5.8,
+                    price_per_post: 1200000,
+                    niche: "education",
+                    location: "Buxoro",
+                    contact: {
+                      telegram: "@zulfiya_contact",
+                      phone: "+998 97 111 22 33",
+                    },
+                    verified: false,
+                    top: false,
+                    promoCode: "",
+                    conversions: 22,
+                    revenue: 1800000,
+                  },
+                ];
 
-              // Merge real DB influencers with mock data
-              const dbInfluencers = influencers.map((inf: any) => ({
-                id: inf.id,
-                name: inf.name,
-                username: `@${inf.name.toLowerCase().replace(/\s+/g, '_')}`,
-                avatar: `https://i.pravatar.cc/300?u=${inf.id}`,
-                platform: ["instagram", "telegram"] as string[],
-                followers: typeof inf.followers === 'string' ? parseFloat(inf.followers.replace(/[^0-9.]/g, '')) * (inf.followers.includes('M') ? 1000000 : inf.followers.includes('K') ? 1000 : 1) : (inf.followers || 0),
-                engagement: 4.5,
-                price_per_post: 1500000,
-                niche: "lifestyle",
-                location: "Toshkent",
-                contact: { telegram: `@${inf.name.toLowerCase().replace(/\s+/g, '_')}` },
-                verified: false,
-                top: false,
-                promoCode: inf.promoCode || "",
-                conversions: inf.conversions || 0,
-                revenue: inf.revenue || 0,
-              }));
+                // Merge real DB influencers with mock data
+                const dbInfluencers = influencers.map((inf: any) => ({
+                  id: inf.id,
+                  name: inf.name,
+                  username: `@${inf.name.toLowerCase().replace(/\s+/g, "_")}`,
+                  avatar: `https://i.pravatar.cc/300?u=${inf.id}`,
+                  platform: ["instagram", "telegram"] as string[],
+                  followers:
+                    typeof inf.followers === "string"
+                      ? parseFloat(inf.followers.replace(/[^0-9.]/g, "")) *
+                        (inf.followers.includes("M")
+                          ? 1000000
+                          : inf.followers.includes("K")
+                            ? 1000
+                            : 1)
+                      : inf.followers || 0,
+                  engagement: 4.5,
+                  price_per_post: 1500000,
+                  niche: "lifestyle",
+                  location: "Toshkent",
+                  contact: {
+                    telegram: `@${inf.name.toLowerCase().replace(/\s+/g, "_")}`,
+                  },
+                  verified: false,
+                  top: false,
+                  promoCode: inf.promoCode || "",
+                  conversions: inf.conversions || 0,
+                  revenue: inf.revenue || 0,
+                }));
 
-              const allInfluencers = [
-                ...MOCK_INFLUENCERS,
-                ...dbInfluencers.filter((d: any) => !MOCK_INFLUENCERS.find(m => m.name === d.name)),
-              ];
+                const allInfluencers = [
+                  ...MOCK_INFLUENCERS,
+                  ...dbInfluencers.filter(
+                    (d: any) =>
+                      !MOCK_INFLUENCERS.find((m) => m.name === d.name),
+                  ),
+                ];
 
-              // Filter logic
-              let filtered = allInfluencers.filter((inf) => {
-                if (infSearchTerm && !inf.name.toLowerCase().includes(infSearchTerm.toLowerCase()) && !inf.niche.toLowerCase().includes(infSearchTerm.toLowerCase()) && !inf.username.toLowerCase().includes(infSearchTerm.toLowerCase())) return false;
-                if (infPlatformFilter !== "all" && !inf.platform.includes(infPlatformFilter)) return false;
-                if (infNicheFilter !== "all" && inf.niche !== infNicheFilter) return false;
-                if (infFollowersFilter === "10k" && inf.followers < 10000) return false;
-                if (infFollowersFilter === "50k" && inf.followers < 50000) return false;
-                if (infFollowersFilter === "100k" && inf.followers < 100000) return false;
-                if (infFollowersFilter === "1m" && inf.followers < 1000000) return false;
-                return true;
-              });
-              if (infSortBy === "followers") filtered.sort((a, b) => b.followers - a.followers);
-              if (infSortBy === "engagement") filtered.sort((a, b) => b.engagement - a.engagement);
-              if (infSortBy === "revenue") filtered.sort((a, b) => b.revenue - a.revenue);
+                // Filter logic
+                let filtered = allInfluencers.filter((inf) => {
+                  if (
+                    infSearchTerm &&
+                    !inf.name
+                      .toLowerCase()
+                      .includes(infSearchTerm.toLowerCase()) &&
+                    !inf.niche
+                      .toLowerCase()
+                      .includes(infSearchTerm.toLowerCase()) &&
+                    !inf.username
+                      .toLowerCase()
+                      .includes(infSearchTerm.toLowerCase())
+                  )
+                    return false;
+                  if (
+                    infPlatformFilter !== "all" &&
+                    !inf.platform.includes(infPlatformFilter)
+                  )
+                    return false;
+                  if (infNicheFilter !== "all" && inf.niche !== infNicheFilter)
+                    return false;
+                  if (infFollowersFilter === "10k" && inf.followers < 10000)
+                    return false;
+                  if (infFollowersFilter === "50k" && inf.followers < 50000)
+                    return false;
+                  if (infFollowersFilter === "100k" && inf.followers < 100000)
+                    return false;
+                  if (infFollowersFilter === "1m" && inf.followers < 1000000)
+                    return false;
+                  return true;
+                });
+                if (infSortBy === "followers")
+                  filtered.sort((a, b) => b.followers - a.followers);
+                if (infSortBy === "engagement")
+                  filtered.sort((a, b) => b.engagement - a.engagement);
+                if (infSortBy === "revenue")
+                  filtered.sort((a, b) => b.revenue - a.revenue);
 
-              const formatFollowers = (n: number) => {
-                if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
-                if (n >= 1000) return (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, '') + 'K';
-                return n.toString();
-              };
+                const formatFollowers = (n: number) => {
+                  if (n >= 1000000)
+                    return (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+                  if (n >= 1000)
+                    return (
+                      (n / 1000)
+                        .toFixed(n >= 100000 ? 0 : 1)
+                        .replace(/\.0$/, "") + "K"
+                    );
+                  return n.toString();
+                };
 
-              const platformIcon = (p: string) => {
-                switch (p) {
-                  case "instagram": return <Instagram size={13} />;
-                  case "telegram": return <Send size={13} />;
-                  case "youtube": return <Youtube size={13} />;
-                  case "tiktok": return <Zap size={13} />;
-                  default: return null;
-                }
-              };
-              const platformColor = (p: string) => {
-                switch (p) {
-                  case "instagram": return "bg-pink-100 text-pink-600";
-                  case "telegram": return "bg-sky-100 text-sky-600";
-                  case "youtube": return "bg-red-100 text-red-600";
-                  case "tiktok": return "bg-slate-100 text-slate-700";
-                  default: return "bg-slate-100 text-slate-600";
-                }
-              };
-              const nicheLabel: Record<string, string> = { food: "Oziq-ovqat", education: "Ta'lim", tech: "Texnologiya", lifestyle: "Lifestyle", business: "Biznes" };
-              const nicheColor: Record<string, string> = { food: "bg-amber-50 text-amber-700", education: "bg-blue-50 text-blue-700", tech: "bg-cyan-50 text-cyan-700", lifestyle: "bg-orange-50 text-orange-700", business: "bg-emerald-50 text-emerald-700" };
+                const platformIcon = (p: string) => {
+                  switch (p) {
+                    case "instagram":
+                      return <Instagram size={13} />;
+                    case "telegram":
+                      return <Send size={13} />;
+                    case "youtube":
+                      return <Youtube size={13} />;
+                    case "tiktok":
+                      return <Zap size={13} />;
+                    default:
+                      return null;
+                  }
+                };
+                const platformColor = (p: string) => {
+                  switch (p) {
+                    case "instagram":
+                      return "bg-pink-100 text-pink-600";
+                    case "telegram":
+                      return "bg-sky-100 text-sky-600";
+                    case "youtube":
+                      return "bg-red-100 text-red-600";
+                    case "tiktok":
+                      return "bg-slate-100 text-slate-700";
+                    default:
+                      return "bg-slate-100 text-slate-600";
+                  }
+                };
+                const nicheLabel: Record<string, string> = {
+                  food: "Oziq-ovqat",
+                  education: "Ta'lim",
+                  tech: "Texnologiya",
+                  lifestyle: "Lifestyle",
+                  business: "Biznes",
+                };
+                const nicheColor: Record<string, string> = {
+                  food: "bg-amber-50 text-amber-700",
+                  education: "bg-blue-50 text-blue-700",
+                  tech: "bg-cyan-50 text-cyan-700",
+                  lifestyle: "bg-orange-50 text-orange-700",
+                  business: "bg-emerald-50 text-emerald-700",
+                };
 
-              return (
-              <motion.div
-                key="influencers"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-6"
-              >
-                {/* ── HEADER ── */}
-                <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-800">Influencer Marketplace</h3>
-                    <p className="text-sm text-slate-500">O'zbekistonning eng yaxshi influencerlari bilan hamkorlik qiling</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
-                      <Users size={14} /> {allInfluencers.length} ta influencer
-                    </span>
-                    <button
-                      onClick={() => setShowAddInfluencerModal(true)}
-                      className="flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-orange-200 transition-colors hover:bg-orange-600 active:scale-95"
-                    >
-                      <Plus size={16} /> Yangi Hamkor
-                    </button>
-                  </div>
-                </div>
-
-                {/* ── FILTER BAR ── */}
-                <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                      <input
-                        type="text"
-                        placeholder="Ism, niche yoki username bo'yicha qidiring..."
-                        value={infSearchTerm}
-                        onChange={(e) => setInfSearchTerm(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                      />
+                return (
+                  <motion.div
+                    key="influencers"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="space-y-6"
+                  >
+                    {/* ── HEADER ── */}
+                    <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <h3 className="text-xl font-bold text-slate-800">
+                          Influencer Marketplace
+                        </h3>
+                        <p className="text-sm text-slate-500">
+                          O'zbekistonning eng yaxshi influencerlari bilan
+                          hamkorlik qiling
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                          <Users size={14} /> {allInfluencers.length} ta
+                          influencer
+                        </span>
+                        <button
+                          onClick={() => setShowAddInfluencerModal(true)}
+                          className="flex items-center gap-2 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white shadow-sm shadow-orange-200 transition-colors hover:bg-orange-600 active:scale-95"
+                        >
+                          <Plus size={16} /> Yangi Hamkor
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <select value={infPlatformFilter} onChange={(e) => setInfPlatformFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500">
-                        <option value="all">Barcha platformalar</option>
-                        <option value="instagram">Instagram</option>
-                        <option value="telegram">Telegram</option>
-                        <option value="youtube">YouTube</option>
-                        <option value="tiktok">TikTok</option>
-                      </select>
-                      <select value={infNicheFilter} onChange={(e) => setInfNicheFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500">
-                        <option value="all">Barcha sohalar</option>
-                        <option value="food">Oziq-ovqat</option>
-                        <option value="education">Ta'lim</option>
-                        <option value="tech">Texnologiya</option>
-                        <option value="lifestyle">Lifestyle</option>
-                        <option value="business">Biznes</option>
-                      </select>
-                      <select value={infFollowersFilter} onChange={(e) => setInfFollowersFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500">
-                        <option value="all">Obunachi soni</option>
-                        <option value="10k">10K+</option>
-                        <option value="50k">50K+</option>
-                        <option value="100k">100K+</option>
-                        <option value="1m">1M+</option>
-                      </select>
-                      <select value={infSortBy} onChange={(e) => setInfSortBy(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500">
-                        <option value="followers">Eng ko'p obunachi</option>
-                        <option value="engagement">Eng faol</option>
-                        <option value="revenue">Eng yuqori daromad</option>
-                      </select>
-                    </div>
-                  </div>
 
-                  {(infSearchTerm || infPlatformFilter !== "all" || infNicheFilter !== "all" || infFollowersFilter !== "all") && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-medium text-slate-400">Filtrlar:</span>
-                      {infSearchTerm && (
-                        <button onClick={() => setInfSearchTerm("")} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200">
-                          "{infSearchTerm}" <X size={12} />
-                        </button>
-                      )}
-                      {infPlatformFilter !== "all" && (
-                        <button onClick={() => setInfPlatformFilter("all")} className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100">
-                          {infPlatformFilter} <X size={12} />
-                        </button>
-                      )}
-                      {infNicheFilter !== "all" && (
-                        <button onClick={() => setInfNicheFilter("all")} className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100">
-                          {nicheLabel[infNicheFilter] || infNicheFilter} <X size={12} />
-                        </button>
-                      )}
-                      {infFollowersFilter !== "all" && (
-                        <button onClick={() => setInfFollowersFilter("all")} className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100">
-                          {infFollowersFilter.toUpperCase()}+ <X size={12} />
-                        </button>
-                      )}
-                      <button onClick={() => { setInfSearchTerm(""); setInfPlatformFilter("all"); setInfNicheFilter("all"); setInfFollowersFilter("all"); }} className="text-xs font-semibold text-red-500 hover:underline">
-                        Tozalash
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    {/* ── FILTER BAR ── */}
+                    <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                        <div className="relative flex-1">
+                          <Search
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                            size={18}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Ism, niche yoki username bo'yicha qidiring..."
+                            value={infSearchTerm}
+                            onChange={(e) => setInfSearchTerm(e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            value={infPlatformFilter}
+                            onChange={(e) =>
+                              setInfPlatformFilter(e.target.value)
+                            }
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            <option value="all">Barcha platformalar</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="telegram">Telegram</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="tiktok">TikTok</option>
+                          </select>
+                          <select
+                            value={infNicheFilter}
+                            onChange={(e) => setInfNicheFilter(e.target.value)}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            <option value="all">Barcha sohalar</option>
+                            <option value="food">Oziq-ovqat</option>
+                            <option value="education">Ta'lim</option>
+                            <option value="tech">Texnologiya</option>
+                            <option value="lifestyle">Lifestyle</option>
+                            <option value="business">Biznes</option>
+                          </select>
+                          <select
+                            value={infFollowersFilter}
+                            onChange={(e) =>
+                              setInfFollowersFilter(e.target.value)
+                            }
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            <option value="all">Obunachi soni</option>
+                            <option value="10k">10K+</option>
+                            <option value="50k">50K+</option>
+                            <option value="100k">100K+</option>
+                            <option value="1m">1M+</option>
+                          </select>
+                          <select
+                            value={infSortBy}
+                            onChange={(e) => setInfSortBy(e.target.value)}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 outline-none focus:ring-2 focus:ring-orange-500"
+                          >
+                            <option value="followers">Eng ko'p obunachi</option>
+                            <option value="engagement">Eng faol</option>
+                            <option value="revenue">Eng yuqori daromad</option>
+                          </select>
+                        </div>
+                      </div>
 
-                {/* ── INFLUENCER GRID ── */}
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {filtered.map((inf) => (
-                    <div
-                      key={inf.id}
-                      className="group relative flex flex-col rounded-2xl border border-slate-100 bg-white shadow-sm transition-shadow hover:shadow-md"
-                    >
-                      {/* Top badge */}
-                      {inf.top && (
-                        <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full bg-orange-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
-                          <Star size={10} fill="currentColor" /> TOP
+                      {(infSearchTerm ||
+                        infPlatformFilter !== "all" ||
+                        infNicheFilter !== "all" ||
+                        infFollowersFilter !== "all") && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-medium text-slate-400">
+                            Filtrlar:
+                          </span>
+                          {infSearchTerm && (
+                            <button
+                              onClick={() => setInfSearchTerm("")}
+                              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200"
+                            >
+                              "{infSearchTerm}" <X size={12} />
+                            </button>
+                          )}
+                          {infPlatformFilter !== "all" && (
+                            <button
+                              onClick={() => setInfPlatformFilter("all")}
+                              className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100"
+                            >
+                              {infPlatformFilter} <X size={12} />
+                            </button>
+                          )}
+                          {infNicheFilter !== "all" && (
+                            <button
+                              onClick={() => setInfNicheFilter("all")}
+                              className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100"
+                            >
+                              {nicheLabel[infNicheFilter] || infNicheFilter}{" "}
+                              <X size={12} />
+                            </button>
+                          )}
+                          {infFollowersFilter !== "all" && (
+                            <button
+                              onClick={() => setInfFollowersFilter("all")}
+                              className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-100"
+                            >
+                              {infFollowersFilter.toUpperCase()}+{" "}
+                              <X size={12} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setInfSearchTerm("");
+                              setInfPlatformFilter("all");
+                              setInfNicheFilter("all");
+                              setInfFollowersFilter("all");
+                            }}
+                            className="text-xs font-semibold text-red-500 hover:underline"
+                          >
+                            Tozalash
+                          </button>
                         </div>
                       )}
+                    </div>
 
-                      {/* Header */}
-                      <div className="p-6 pb-4">
-                        <div className="flex items-start gap-4">
-                          <div className="relative shrink-0">
-                            <img
-                              src={inf.avatar}
-                              alt={inf.name}
-                              className="h-14 w-14 rounded-xl border border-slate-100 object-cover"
-                              referrerPolicy="no-referrer"
-                            />
-                            {inf.verified && (
-                              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-white">
-                                <BadgeCheck size={12} />
+                    {/* ── INFLUENCER GRID ── */}
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                      {filtered.map((inf) => (
+                        <div
+                          key={inf.id}
+                          className="group relative flex flex-col rounded-2xl border border-slate-100 bg-white shadow-sm transition-shadow hover:shadow-md"
+                        >
+                          {/* Top badge */}
+                          {inf.top && (
+                            <div className="absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full bg-orange-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                              <Star size={10} fill="currentColor" /> TOP
+                            </div>
+                          )}
+
+                          {/* Header */}
+                          <div className="p-6 pb-4">
+                            <div className="flex items-start gap-4">
+                              <div className="relative shrink-0">
+                                <img
+                                  src={inf.avatar}
+                                  alt={inf.name}
+                                  className="h-14 w-14 rounded-xl border border-slate-100 object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                                {inf.verified && (
+                                  <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white ring-2 ring-white">
+                                    <BadgeCheck size={12} />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h4 className="truncate text-sm font-bold text-slate-900">
+                                  {inf.name}
+                                </h4>
+                                <p className="text-xs text-slate-400">
+                                  {inf.username}
+                                </p>
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {inf.platform.map((p: string) => (
+                                    <span
+                                      key={p}
+                                      className={cn(
+                                        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                                        platformColor(p),
+                                      )}
+                                    >
+                                      {platformIcon(p)}{" "}
+                                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Stats */}
+                          <div className="mx-6 grid grid-cols-3 divide-x divide-slate-100 rounded-lg border border-slate-100 bg-slate-50">
+                            <div className="px-3 py-2.5 text-center">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                Obunachi
+                              </p>
+                              <p className="mt-0.5 text-sm font-bold text-slate-900">
+                                {formatFollowers(inf.followers)}
+                              </p>
+                            </div>
+                            <div className="px-3 py-2.5 text-center">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                Faollik
+                              </p>
+                              <p className="mt-0.5 text-sm font-bold text-green-600">
+                                {inf.engagement}%
+                              </p>
+                            </div>
+                            <div className="px-3 py-2.5 text-center">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                Narx/post
+                              </p>
+                              <p className="mt-0.5 text-sm font-bold text-slate-900">
+                                {(inf.price_per_post / 1000000).toFixed(1)}M
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Body */}
+                          <div className="flex flex-1 flex-col gap-3 p-6 pt-4">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span
+                                className={cn(
+                                  "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                                  nicheColor[inf.niche] ||
+                                    "bg-slate-50 text-slate-600",
+                                )}
+                              >
+                                {nicheLabel[inf.niche] || inf.niche}
+                              </span>
+                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">
+                                <MapPin size={10} /> {inf.location}
+                              </span>
+                              {inf.promoCode && (
+                                <span className="rounded-full bg-orange-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-orange-600">
+                                  {inf.promoCode}
+                                </span>
+                              )}
+                            </div>
+
+                            {inf.revenue > 0 && (
+                              <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                                <span className="text-slate-500">
+                                  <CheckCircle
+                                    size={12}
+                                    className="mr-1 inline text-green-500"
+                                  />
+                                  {inf.conversions} konversiya
+                                </span>
+                                <span className="font-bold text-green-600">
+                                  {(inf.revenue / 1000000).toFixed(1)}M so'm
+                                </span>
                               </div>
                             )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h4 className="truncate text-sm font-bold text-slate-900">{inf.name}</h4>
-                            <p className="text-xs text-slate-400">{inf.username}</p>
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {inf.platform.map((p: string) => (
-                                <span key={p} className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold", platformColor(p))}>
-                                  {platformIcon(p)} {p.charAt(0).toUpperCase() + p.slice(1)}
-                                </span>
-                              ))}
+
+                            {/* Actions */}
+                            <div className="mt-auto flex items-center gap-2 pt-2">
+                              <button
+                                onClick={() => setInfContactModal(inf)}
+                                className="flex-1 rounded-xl bg-orange-500 py-2.5 text-center text-sm font-bold text-white transition-colors hover:bg-orange-600 active:scale-[0.98]"
+                              >
+                                Bog'lanish
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setInfSaved((prev) => {
+                                    const next = new Set(prev);
+                                    next.has(inf.id)
+                                      ? next.delete(inf.id)
+                                      : next.add(inf.id);
+                                    return next;
+                                  })
+                                }
+                                className={cn(
+                                  "flex h-10 w-10 items-center justify-center rounded-xl border transition-colors",
+                                  infSaved.has(inf.id)
+                                    ? "border-orange-200 bg-orange-50 text-orange-500"
+                                    : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-orange-500",
+                                )}
+                                title="Saqlash"
+                              >
+                                <Bookmark
+                                  size={16}
+                                  fill={
+                                    infSaved.has(inf.id)
+                                      ? "currentColor"
+                                      : "none"
+                                  }
+                                />
+                              </button>
                             </div>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Stats */}
-                      <div className="mx-6 grid grid-cols-3 divide-x divide-slate-100 rounded-lg border border-slate-100 bg-slate-50">
-                        <div className="px-3 py-2.5 text-center">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Obunachi</p>
-                          <p className="mt-0.5 text-sm font-bold text-slate-900">{formatFollowers(inf.followers)}</p>
-                        </div>
-                        <div className="px-3 py-2.5 text-center">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Faollik</p>
-                          <p className="mt-0.5 text-sm font-bold text-green-600">{inf.engagement}%</p>
-                        </div>
-                        <div className="px-3 py-2.5 text-center">
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Narx/post</p>
-                          <p className="mt-0.5 text-sm font-bold text-slate-900">{(inf.price_per_post / 1000000).toFixed(1)}M</p>
-                        </div>
-                      </div>
-
-                      {/* Body */}
-                      <div className="flex flex-1 flex-col gap-3 p-6 pt-4">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold", nicheColor[inf.niche] || "bg-slate-50 text-slate-600")}>
-                            {nicheLabel[inf.niche] || inf.niche}
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">
-                            <MapPin size={10} /> {inf.location}
-                          </span>
-                          {inf.promoCode && (
-                            <span className="rounded-full bg-orange-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-orange-600">
-                              {inf.promoCode}
-                            </span>
-                          )}
-                        </div>
-
-                        {inf.revenue > 0 && (
-                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
-                            <span className="text-slate-500">
-                              <CheckCircle size={12} className="mr-1 inline text-green-500" />{inf.conversions} konversiya
-                            </span>
-                            <span className="font-bold text-green-600">{(inf.revenue / 1000000).toFixed(1)}M so'm</span>
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="mt-auto flex items-center gap-2 pt-2">
-                          <button
-                            onClick={() => setInfContactModal(inf)}
-                            className="flex-1 rounded-xl bg-orange-500 py-2.5 text-center text-sm font-bold text-white transition-colors hover:bg-orange-600 active:scale-[0.98]"
-                          >
-                            Bog'lanish
-                          </button>
-                          <button
-                            onClick={() => setInfSaved(prev => { const next = new Set(prev); next.has(inf.id) ? next.delete(inf.id) : next.add(inf.id); return next; })}
-                            className={cn(
-                              "flex h-10 w-10 items-center justify-center rounded-xl border transition-colors",
-                              infSaved.has(inf.id)
-                                ? "border-orange-200 bg-orange-50 text-orange-500"
-                                : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-orange-500"
-                            )}
-                            title="Saqlash"
-                          >
-                            <Bookmark size={16} fill={infSaved.has(inf.id) ? "currentColor" : "none"} />
-                          </button>
-                        </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
 
-                {/* ── EMPTY STATE ── */}
-                {filtered.length === 0 && (
-                  <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-100 bg-white py-20 text-center">
-                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-200">
-                      <Users size={32} />
-                    </div>
-                    <p className="text-lg font-bold text-slate-900">Mos influencer topilmadi</p>
-                    <p className="mt-1 text-sm text-slate-400">
-                      Filtrlarni o'zgartiring yoki qidiruv so'zini tekshiring
-                    </p>
-                    <button
-                      onClick={() => { setInfSearchTerm(""); setInfPlatformFilter("all"); setInfNicheFilter("all"); setInfFollowersFilter("all"); }}
-                      className="mt-6 flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-800 active:scale-95"
-                    >
-                      <Filter size={16} /> Filtrlarni tozalash
-                    </button>
-                  </div>
-                )}
-              </motion.div>
-              );
-            })()}
+                    {/* ── EMPTY STATE ── */}
+                    {filtered.length === 0 && (
+                      <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-100 bg-white py-20 text-center">
+                        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-200">
+                          <Users size={32} />
+                        </div>
+                        <p className="text-lg font-bold text-slate-900">
+                          Mos influencer topilmadi
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">
+                          Filtrlarni o'zgartiring yoki qidiruv so'zini
+                          tekshiring
+                        </p>
+                        <button
+                          onClick={() => {
+                            setInfSearchTerm("");
+                            setInfPlatformFilter("all");
+                            setInfNicheFilter("all");
+                            setInfFollowersFilter("all");
+                          }}
+                          className="mt-6 flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white hover:bg-slate-800 active:scale-95"
+                        >
+                          <Filter size={16} /> Filtrlarni tozalash
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })()}
 
             {activeTab === "content" && (
               <motion.div
@@ -1725,7 +2374,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           Yangi Kontent Reja
                         </h3>
                         <p className="text-sm font-medium text-slate-500 leading-relaxed">
-                          AI yordamida 1 haftalik professional marketing rejasini bir necha soniyada tuzing
+                          AI yordamida 1 haftalik professional marketing
+                          rejasini bir necha soniyada tuzing
                         </p>
                       </div>
                     </div>
@@ -1741,10 +2391,14 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           maxLength={500}
                         />
                         <div className="absolute bottom-3 right-4 flex items-center gap-2">
-                          <span className={cn(
-                            "text-xs font-medium tabular-nums transition-colors",
-                            contentInput.length > 450 ? "text-orange-500" : "text-slate-300"
-                          )}>
+                          <span
+                            className={cn(
+                              "text-xs font-medium tabular-nums transition-colors",
+                              contentInput.length > 450
+                                ? "text-orange-500"
+                                : "text-slate-300",
+                            )}
+                          >
                             {contentInput.length}/500
                           </span>
                         </div>
@@ -1752,7 +2406,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
 
                       <p className="flex items-center gap-1.5 pl-1 text-xs text-slate-400">
                         <Sparkles size={12} className="text-orange-400" />
-                        Soha, maqsadli auditoriya va platformalarni aniq yozing — AI yanada sifatli reja tuzadi
+                        Soha, maqsadli auditoriya va platformalarni aniq yozing
+                        — AI yanada sifatli reja tuzadi
                       </p>
 
                       <button
@@ -1768,9 +2423,14 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           {loading ? (
                             <Loader2 className="animate-spin" size={22} />
                           ) : (
-                            <Sparkles size={22} className="transition-transform duration-200 group-hover/btn:rotate-12" />
+                            <Sparkles
+                              size={22}
+                              className="transition-transform duration-200 group-hover/btn:rotate-12"
+                            />
                           )}
-                          {loading ? "Reja yaratilmoqda..." : "AI Rejani Generatsiya Qilish"}
+                          {loading
+                            ? "Reja yaratilmoqda..."
+                            : "AI Rejani Generatsiya Qilish"}
                         </span>
                         <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-700 group-hover/btn:translate-x-full" />
                       </button>
@@ -1785,22 +2445,37 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       <FileText size={14} />
                       Jami: {contentPlans.length}
                     </span>
-                    {contentPlans.filter(p => p.status === "completed").length > 0 && (
+                    {contentPlans.filter((p) => p.status === "completed")
+                      .length > 0 && (
                       <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-600">
                         <CheckCircle size={13} />
-                        Tayyor: {contentPlans.filter(p => p.status === "completed").length}
+                        Tayyor:{" "}
+                        {
+                          contentPlans.filter((p) => p.status === "completed")
+                            .length
+                        }
                       </span>
                     )}
-                    {contentPlans.filter(p => p.status === "approved").length > 0 && (
+                    {contentPlans.filter((p) => p.status === "approved")
+                      .length > 0 && (
                       <span className="flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-2 text-xs font-bold text-blue-600">
                         <Calendar size={13} />
-                        Rejalashtirilgan: {contentPlans.filter(p => p.status === "approved").length}
+                        Rejalashtirilgan:{" "}
+                        {
+                          contentPlans.filter((p) => p.status === "approved")
+                            .length
+                        }
                       </span>
                     )}
-                    {contentPlans.filter(p => p.status === "pending").length > 0 && (
+                    {contentPlans.filter((p) => p.status === "pending").length >
+                      0 && (
                       <span className="flex items-center gap-1.5 rounded-full bg-orange-50 px-4 py-2 text-xs font-bold text-orange-500">
                         <Clock size={13} />
-                        Kutilmoqda: {contentPlans.filter(p => p.status === "pending").length}
+                        Kutilmoqda:{" "}
+                        {
+                          contentPlans.filter((p) => p.status === "pending")
+                            .length
+                        }
                       </span>
                     )}
                   </div>
@@ -1859,9 +2534,19 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                           : "bg-orange-50 text-orange-600 ring-1 ring-orange-500/10",
                                   )}
                                 >
-                                  <span className="h-1.5 w-1.5 rounded-full" style={{
-                                    backgroundColor: plan.status === "completed" ? "#10b981" : plan.status === "approved" ? "#3b82f6" : plan.status === "rejected" ? "#ef4444" : "#f97316"
-                                  }} />
+                                  <span
+                                    className="h-1.5 w-1.5 rounded-full"
+                                    style={{
+                                      backgroundColor:
+                                        plan.status === "completed"
+                                          ? "#10b981"
+                                          : plan.status === "approved"
+                                            ? "#3b82f6"
+                                            : plan.status === "rejected"
+                                              ? "#ef4444"
+                                              : "#f97316",
+                                    }}
+                                  />
                                   {plan.status === "completed"
                                     ? "Tayyor"
                                     : plan.status === "approved"
@@ -1877,12 +2562,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
 
                               {/* Meta row */}
                               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
-                                {plan.scheduledPosts && plan.scheduledPosts.length > 0 && (
-                                  <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-                                    <FileText size={13} />
-                                    {plan.scheduledPosts.length} ta post
-                                  </span>
-                                )}
+                                {plan.scheduledPosts &&
+                                  plan.scheduledPosts.length > 0 && (
+                                    <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                                      <FileText size={13} />
+                                      {plan.scheduledPosts.length} ta post
+                                    </span>
+                                  )}
                                 {plan.telegramChannelId && (
                                   <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-500">
                                     <Send size={13} />
@@ -1892,7 +2578,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                 <span className="flex items-center gap-1.5 text-xs font-medium text-slate-400">
                                   <Calendar size={13} />
                                   {plan.createdAt?.toDate
-                                    ? plan.createdAt.toDate().toLocaleDateString("uz-UZ", { day: "numeric", month: "short", year: "numeric" })
+                                    ? plan.createdAt
+                                        .toDate()
+                                        .toLocaleDateString("uz-UZ", {
+                                          day: "numeric",
+                                          month: "short",
+                                          year: "numeric",
+                                        })
                                     : "Hozir"}
                                 </span>
                               </div>
@@ -1922,7 +2614,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           </div>
 
                           {/* ── Expand / Posts ── */}
-                          {plan.scheduledPosts && plan.scheduledPosts.length > 0 ? (
+                          {plan.scheduledPosts &&
+                          plan.scheduledPosts.length > 0 ? (
                             <div className="mt-6 space-y-3">
                               <button
                                 onClick={() =>
@@ -1933,13 +2626,22 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                 className="flex w-full items-center justify-between rounded-xl bg-slate-50/80 px-5 py-3.5 text-left transition-colors duration-150 hover:bg-slate-100/80"
                               >
                                 <span className="flex items-center gap-2.5 text-sm font-bold text-slate-700">
-                                  <FileText size={15} className="text-slate-400" />
+                                  <FileText
+                                    size={15}
+                                    className="text-slate-400"
+                                  />
                                   {plan.scheduledPosts.length} ta post rejasi
                                 </span>
                                 {expandedPlanId === plan.id ? (
-                                  <ChevronUp size={16} className="text-slate-400" />
+                                  <ChevronUp
+                                    size={16}
+                                    className="text-slate-400"
+                                  />
                                 ) : (
-                                  <ChevronDown size={16} className="text-slate-400" />
+                                  <ChevronDown
+                                    size={16}
+                                    className="text-slate-400"
+                                  />
                                 )}
                               </button>
 
@@ -1949,7 +2651,10 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                     initial={{ height: 0, opacity: 0 }}
                                     animate={{ height: "auto", opacity: 1 }}
                                     exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                                    transition={{
+                                      duration: 0.25,
+                                      ease: "easeInOut",
+                                    }}
                                     className="overflow-hidden"
                                   >
                                     <div className="space-y-3 pt-2">
@@ -1988,7 +2693,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                                     type="date"
                                                     value={post.date}
                                                     onChange={(e) =>
-                                                      handleUpdatePostSchedule(plan.id, idx, "date", e.target.value)
+                                                      handleUpdatePostSchedule(
+                                                        plan.id,
+                                                        idx,
+                                                        "date",
+                                                        e.target.value,
+                                                      )
                                                     }
                                                     className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 outline-none transition-all focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
                                                   />
@@ -1996,7 +2706,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                                     type="time"
                                                     value={post.time}
                                                     onChange={(e) =>
-                                                      handleUpdatePostSchedule(plan.id, idx, "time", e.target.value)
+                                                      handleUpdatePostSchedule(
+                                                        plan.id,
+                                                        idx,
+                                                        "time",
+                                                        e.target.value,
+                                                      )
                                                     }
                                                     className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 outline-none transition-all focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
                                                   />
@@ -2004,11 +2719,17 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                               ) : (
                                                 <>
                                                   <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
-                                                    <Calendar size={11} className="text-slate-400" />
+                                                    <Calendar
+                                                      size={11}
+                                                      className="text-slate-400"
+                                                    />
                                                     {post.date}
                                                   </span>
                                                   <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
-                                                    <Clock size={11} className="text-slate-400" />
+                                                    <Clock
+                                                      size={11}
+                                                      className="text-slate-400"
+                                                    />
                                                     {post.time}
                                                   </span>
                                                 </>
@@ -2021,16 +2742,29 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                                   "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold",
                                                   post.status === "sent"
                                                     ? "bg-emerald-100 text-emerald-700"
-                                                    : post.status === "scheduled"
+                                                    : post.status ===
+                                                        "scheduled"
                                                       ? "bg-blue-100 text-blue-700"
                                                       : post.status === "failed"
                                                         ? "bg-red-100 text-red-600"
                                                         : "bg-slate-100 text-slate-600",
                                                 )}
                                               >
-                                                <span className="h-1.5 w-1.5 rounded-full" style={{
-                                                  backgroundColor: post.status === "sent" ? "#10b981" : post.status === "scheduled" ? "#3b82f6" : post.status === "failed" ? "#ef4444" : "#94a3b8"
-                                                }} />
+                                                <span
+                                                  className="h-1.5 w-1.5 rounded-full"
+                                                  style={{
+                                                    backgroundColor:
+                                                      post.status === "sent"
+                                                        ? "#10b981"
+                                                        : post.status ===
+                                                            "scheduled"
+                                                          ? "#3b82f6"
+                                                          : post.status ===
+                                                              "failed"
+                                                            ? "#ef4444"
+                                                            : "#94a3b8",
+                                                  }}
+                                                />
                                                 {post.status === "sent"
                                                   ? "Yuborildi"
                                                   : post.status === "scheduled"
@@ -2046,24 +2780,28 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                             {post.content}
                                           </div>
 
-                                          {post.hashtags && post.hashtags.length > 0 && (
-                                            <div className="mt-3 flex flex-wrap gap-1.5">
-                                              {post.hashtags.map((tag, i) => (
-                                                <span
-                                                  key={i}
-                                                  className="inline-flex items-center gap-1 rounded-md bg-blue-50/80 px-2 py-0.5 text-xs font-medium text-blue-600"
-                                                >
-                                                  <Hash size={10} />
-                                                  {tag.replace(/^#/, "")}
-                                                </span>
-                                              ))}
-                                            </div>
-                                          )}
+                                          {post.hashtags &&
+                                            post.hashtags.length > 0 && (
+                                              <div className="mt-3 flex flex-wrap gap-1.5">
+                                                {post.hashtags.map((tag, i) => (
+                                                  <span
+                                                    key={i}
+                                                    className="inline-flex items-center gap-1 rounded-md bg-blue-50/80 px-2 py-0.5 text-xs font-medium text-blue-600"
+                                                  >
+                                                    <Hash size={10} />
+                                                    {tag.replace(/^#/, "")}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            )}
 
                                           {post.sentAt && (
                                             <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
                                               <CheckCircle size={12} />
-                                              Yuborilgan: {new Date(post.sentAt).toLocaleString("uz-UZ")}
+                                              Yuborilgan:{" "}
+                                              {new Date(
+                                                post.sentAt,
+                                              ).toLocaleString("uz-UZ")}
                                             </p>
                                           )}
                                         </div>
@@ -2088,7 +2826,9 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                     type="text"
                                     placeholder="Telegram kanal ID (masalan: @kanal_nomi yoki -100xxx)"
                                     value={telegramChannelId}
-                                    onChange={(e) => setTelegramChannelId(e.target.value)}
+                                    onChange={(e) =>
+                                      setTelegramChannelId(e.target.value)
+                                    }
                                     className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all duration-150 placeholder:text-slate-300 focus:border-blue-300 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)]"
                                   />
                                   <button
@@ -2097,7 +2837,10 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                     className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition-all duration-150 hover:bg-emerald-700 hover:shadow-md active:scale-[0.98] disabled:opacity-50"
                                   >
                                     {approvingPlanId === plan.id ? (
-                                      <Loader2 size={16} className="animate-spin" />
+                                      <Loader2
+                                        size={16}
+                                        className="animate-spin"
+                                      />
                                     ) : (
                                       <Send size={15} />
                                     )}
@@ -2105,27 +2848,45 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                                   </button>
                                 </div>
                                 <p className="flex items-start gap-1.5 text-xs leading-relaxed text-slate-400">
-                                  <Sparkles size={12} className="mt-0.5 shrink-0 text-orange-400" />
-                                  Botni kanalga admin qilib qo'shing va kanal ID sini kiriting. Tasdiqlangandan so'ng postlar avtomatik chiqariladi.
+                                  <Sparkles
+                                    size={12}
+                                    className="mt-0.5 shrink-0 text-orange-400"
+                                  />
+                                  Botni kanalga admin qilib qo'shing va kanal ID
+                                  sini kiriting. Tasdiqlangandan so'ng postlar
+                                  avtomatik chiqariladi.
                                 </p>
                               </div>
                             )}
                             {plan.status === "approved" && (
                               <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
-                                <Calendar size={16} className="mt-0.5 shrink-0 text-blue-500" />
+                                <Calendar
+                                  size={16}
+                                  className="mt-0.5 shrink-0 text-blue-500"
+                                />
                                 <div>
                                   <p className="text-sm font-bold text-blue-700">
-                                    Reja tasdiqlangan — postlar belgilangan vaqtda avtomatik yuboriladi
+                                    Reja tasdiqlangan — postlar belgilangan
+                                    vaqtda avtomatik yuboriladi
                                   </p>
                                   <p className="mt-1 text-xs text-blue-500">
-                                    Yuborilgan: {plan.scheduledPosts.filter((p) => p.status === "sent").length}/{plan.scheduledPosts.length} ta post
+                                    Yuborilgan:{" "}
+                                    {
+                                      plan.scheduledPosts.filter(
+                                        (p) => p.status === "sent",
+                                      ).length
+                                    }
+                                    /{plan.scheduledPosts.length} ta post
                                   </p>
                                 </div>
                               </div>
                             )}
                             {plan.status === "completed" && (
                               <div className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
-                                <CheckCircle size={16} className="shrink-0 text-emerald-500" />
+                                <CheckCircle
+                                  size={16}
+                                  className="shrink-0 text-emerald-500"
+                                />
                                 <p className="text-sm font-bold text-emerald-700">
                                   Barcha postlar muvaffaqiyatli yuborildi!
                                 </p>
@@ -2146,10 +2907,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           Rejalar hali mavjud emas
                         </p>
                         <p className="mt-1.5 max-w-xs text-sm text-slate-400">
-                          Marketing rejasini tuzish uchun yuqoridagi formadan foydalaning — AI bir necha soniyada tayyor qiladi
+                          Marketing rejasini tuzish uchun yuqoridagi formadan
+                          foydalaning — AI bir necha soniyada tayyor qiladi
                         </p>
                         <button
-                          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                          onClick={() =>
+                            window.scrollTo({ top: 0, behavior: "smooth" })
+                          }
                           className="mt-6 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-slate-800 active:scale-95"
                         >
                           <Plus size={16} />
@@ -3105,26 +3869,42 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
             >
               <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 p-8">
                 <div className="flex items-center gap-4">
-                  <img src={infContactModal.avatar} alt={infContactModal.name} className="h-12 w-12 rounded-xl border border-slate-100 object-cover" referrerPolicy="no-referrer" />
+                  <img
+                    src={infContactModal.avatar}
+                    alt={infContactModal.name}
+                    className="h-12 w-12 rounded-xl border border-slate-100 object-cover"
+                    referrerPolicy="no-referrer"
+                  />
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-bold text-slate-900">{infContactModal.name}</h3>
-                      {infContactModal.verified && <BadgeCheck size={16} className="text-blue-500" />}
+                      <h3 className="text-lg font-bold text-slate-900">
+                        {infContactModal.name}
+                      </h3>
+                      {infContactModal.verified && (
+                        <BadgeCheck size={16} className="text-blue-500" />
+                      )}
                     </div>
-                    <p className="text-xs text-slate-400">{infContactModal.username}</p>
+                    <p className="text-xs text-slate-400">
+                      {infContactModal.username}
+                    </p>
                   </div>
                 </div>
-                <button onClick={() => setInfContactModal(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+                <button
+                  onClick={() => setInfContactModal(null)}
+                  className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors"
+                >
                   <X size={18} />
                 </button>
               </div>
 
               <div className="space-y-4 p-8">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Bog'lanish usullari</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                  Bog'lanish usullari
+                </p>
 
                 {infContactModal.contact?.telegram && (
                   <a
-                    href={`https://t.me/${infContactModal.contact.telegram.replace('@', '')}`}
+                    href={`https://t.me/${infContactModal.contact.telegram.replace("@", "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:bg-sky-50 hover:border-sky-200"
@@ -3133,8 +3913,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       <Send size={18} />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold text-slate-900">Telegram</p>
-                      <p className="text-xs text-slate-500">{infContactModal.contact.telegram}</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        Telegram
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {infContactModal.contact.telegram}
+                      </p>
                     </div>
                     <ExternalLink size={16} className="text-slate-400" />
                   </a>
@@ -3149,8 +3933,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       <Phone size={18} />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold text-slate-900">Telefon</p>
-                      <p className="text-xs text-slate-500">{infContactModal.contact.phone}</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        Telefon
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {infContactModal.contact.phone}
+                      </p>
                     </div>
                     <ExternalLink size={16} className="text-slate-400" />
                   </a>
@@ -3162,8 +3950,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       <Users size={18} />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold text-slate-900">Agent / Menejer</p>
-                      <p className="text-xs text-slate-500">{infContactModal.contact.agent}</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        Agent / Menejer
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {infContactModal.contact.agent}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -3171,7 +3963,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                 <div className="rounded-lg bg-orange-50 p-3">
                   <p className="text-xs text-orange-600">
                     <Sparkles size={12} className="mr-1 inline" />
-                    Hamkorlik taklifi yuborishda biznesingiz haqida qisqacha yozing — javob olish ehtimolini oshiradi.
+                    Hamkorlik taklifi yuborishda biznesingiz haqida qisqacha
+                    yozing — javob olish ehtimolini oshiradi.
                   </p>
                 </div>
               </div>
@@ -3195,24 +3988,47 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                <h3 className="text-2xl font-black text-slate-900 tracking-tight">Yangi Hamkor Qo'shish</h3>
-                <button onClick={() => setShowAddInfluencerModal(false)} className="p-2 hover:bg-white rounded-full transition-colors">
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">
+                  Yangi Hamkor Qo'shish
+                </h3>
+                <button
+                  onClick={() => setShowAddInfluencerModal(false)}
+                  className="p-2 hover:bg-white rounded-full transition-colors"
+                >
                   <Plus size={24} className="rotate-45 text-slate-400" />
                 </button>
               </div>
               <div className="p-8 space-y-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Influencer Ismi</label>
-                  <input type="text" placeholder="Masalan: Munisa Rizayeva" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500" />
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                    Influencer Ismi
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Masalan: Munisa Rizayeva"
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Obunachilar</label>
-                    <input type="text" placeholder="Masalan: 5M" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500" />
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                      Obunachilar
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Masalan: 5M"
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">Promokod</label>
-                    <input type="text" placeholder="Masalan: MUNISA10" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500" />
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                      Promokod
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Masalan: MUNISA10"
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500"
+                    />
                   </div>
                 </div>
                 <button className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-orange-100 hover:bg-orange-600 transition-all active:scale-95">
