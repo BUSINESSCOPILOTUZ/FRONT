@@ -331,7 +331,75 @@ function AppContent() {
 
   // Auth Listener
   useEffect(() => {
-    // Demo user ni localStorage dan tekshirish
+    // 1. URL'dan Google OAuth token va user ma'lumotlarini tekshirish
+    //    Backend Google callback'dan qaytarganida URL da ?token=...&user=... bo'ladi
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get("token");
+    const userFromUrl = urlParams.get("user");
+    const errorFromUrl = urlParams.get("error");
+
+    // Agar URL'da xatolik parametri bo'lsa — konsolga chiqarish
+    if (errorFromUrl) {
+      console.error("Google OAuth xatosi:", errorFromUrl);
+      // URL'ni tozalash (parametrlarni olib tashlash)
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // Agar URL'da token va user ma'lumotlari bo'lsa — Google OAuth muvaffaqiyatli
+    if (tokenFromUrl && userFromUrl) {
+      try {
+        const parsedUser = JSON.parse(decodeURIComponent(userFromUrl));
+        // JWT tokenni localStorage'ga saqlash — keyingi so'rovlarda ishlatiladi
+        localStorage.setItem("auth-token", tokenFromUrl);
+        // Foydalanuvchi ma'lumotlarini saqlash
+        localStorage.setItem("auth-user", JSON.stringify(parsedUser));
+
+        // FirebaseUser formatiga moslashtirish (mavjud kod bilan ishlashi uchun)
+        const mockUser = {
+          uid: parsedUser.id,
+          displayName: parsedUser.name,
+          email: parsedUser.email,
+          photoURL: parsedUser.photoURL || "",
+        } as FirebaseUser;
+
+        setUser(mockUser);
+        setIsAuthReady(true);
+
+        // URL'ni tozalash (token va user parametrlarini olib tashlash — xavfsizlik uchun)
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
+        return; // Boshqa tekshiruvlar kerak emas
+      } catch (e) {
+        console.error("URL'dan user ma'lumotlarini parse qilishda xatolik:", e);
+      }
+    }
+
+    // 2. localStorage'dan saqlangan auth-user ni tekshirish (sahifa yangilanganda)
+    const savedAuthUser = localStorage.getItem("auth-user");
+    const savedToken = localStorage.getItem("auth-token");
+    if (savedAuthUser && savedToken) {
+      try {
+        const parsedUser = JSON.parse(savedAuthUser);
+        const mockUser = {
+          uid: parsedUser.id,
+          displayName: parsedUser.name,
+          email: parsedUser.email,
+          photoURL: parsedUser.photoURL || "",
+        } as FirebaseUser;
+        setUser(mockUser);
+        setIsAuthReady(true);
+        return;
+      } catch (e) {
+        // Noto'g'ri ma'lumot bo'lsa — tozalash
+        localStorage.removeItem("auth-user");
+        localStorage.removeItem("auth-token");
+      }
+    }
+
+    // 3. Demo user ni localStorage dan tekshirish
     const savedDemo = localStorage.getItem("demo-user");
     if (savedDemo) {
       const mockUser = JSON.parse(savedDemo) as FirebaseUser;
@@ -339,6 +407,7 @@ function AppContent() {
       setIsAuthReady(true);
     }
 
+    // 4. Firebase Auth listener (eski usul — saqlab qolindi orqaga moslik uchun)
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (u) {
         // Sync user to Firestore
@@ -536,12 +605,21 @@ function AppContent() {
   }, [isAuthReady, user]);
 
   const handleLogin = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Login xatosi:", error);
-    }
+    /**
+     * Google orqali kirish — Backend'ga yo'naltirish
+     *
+     * Foydalanuvchi "Google orqali kirish" tugmasini bosganda:
+     * 1. Brauzer backend'ning /api/auth/google manzilga o'tadi
+     * 2. Backend (Passport.js) Google login sahifasiga redirect qiladi
+     * 3. Foydalanuvchi Google'da tizimga kiradi
+     * 4. Google backend'ning /api/auth/google/callback ga qaytaradi
+     * 5. Backend JWT token yaratib, frontend URL ga redirect qiladi:
+     *    https://business-copilot.masatov.uz?token=...&user=...
+     * 6. Frontend useEffect da URL'dan token va user ni oladi va saqlaydi
+     */
+    const BACKEND_AUTH_URL =
+      "https://apibusinesscopilot.masatov.uz/api/auth/google";
+    window.location.href = BACKEND_AUTH_URL;
   };
 
   const handleDemoLogin = () => {
@@ -564,14 +642,23 @@ function AppContent() {
     }, 1000);
   };
   const handleLogout = async () => {
+    // Demo user uchun
     if (user?.uid === "demo-user-123") {
       setUser(null);
       localStorage.removeItem("demo-user");
       return;
     }
+
+    // Google OAuth orqali kirgan foydalanuvchi uchun — tokenlarni tozalash
+    localStorage.removeItem("auth-token");
+    localStorage.removeItem("auth-user");
+    setUser(null);
+
+    // Firebase orqali ham chiqish (agar Firebase bilan kirgan bo'lsa)
     try {
       await signOut(auth);
     } catch (error) {
+      // Firebase'dan chiqishda xatolik bo'lsa ham davom etamiz
       console.error("Logout xatosi:", error);
     }
   };
