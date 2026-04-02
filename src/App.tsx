@@ -1,9 +1,5 @@
 // chan
 
-
-
-
-
 import React, {
   useState,
   useEffect,
@@ -328,12 +324,20 @@ const aiApi = {
     if (!data.status) throw new Error(data.message);
     return data.data.text;
   },
-  generateAds: async (description: string, platform: string, language?: string) => {
+  generateAds: async (
+    description: string,
+    platform: string,
+    language?: string,
+  ) => {
     // Extended: sends language for TG Ads (uz, en, ru)
     const res = await fetch(`${API_BASE}/generate-ads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ description, platform, ...(language && { language }) }),
+      body: JSON.stringify({
+        description,
+        platform,
+        ...(language && { language }),
+      }),
     });
     const data = await res.json();
     if (!data.status) throw new Error(data.message);
@@ -498,8 +502,14 @@ function AppContent() {
   const [tgSelectedImage, setTgSelectedImage] = useState<number | null>(null);
 
   // Meta Ads Extended State
-  const [metaImages, setMetaImages] = useState<{ url: string; ratio: string; label: string }[]>([]);
-  const [metaTexts, setMetaTexts] = useState<{ headline: string; primary: string; cta: string } | null>(null);
+  const [metaImages, setMetaImages] = useState<
+    { url: string; ratio: string; label: string }[]
+  >([]);
+  const [metaTexts, setMetaTexts] = useState<{
+    headline: string;
+    primary: string;
+    cta: string;
+  } | null>(null);
 
   // Market Analysis State
   const [marketAnalysisInput, setMarketAnalysisInput] = useState("");
@@ -723,8 +733,12 @@ function AppContent() {
     const loadContentPlans = async () => {
       if (user?.uid === "demo-user-123") return;
       try {
+        const token = localStorage.getItem("auth-token");
         const res = await fetch(CONTENT_API, {
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
         });
         const data = await res.json();
         if (data.status && data.data) {
@@ -949,9 +963,13 @@ function AppContent() {
       }
 
       // Backend API orqali yaratish (MongoDB ga saqlanadi)
+      const token = localStorage.getItem("auth-token");
       const res = await fetch(`${CONTENT_API}/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ topic: contentInput }),
       });
       const data = await res.json();
@@ -970,8 +988,12 @@ function AppContent() {
 
   const fetchContentPlans = async () => {
     try {
+      const token = localStorage.getItem("auth-token");
       const res = await fetch(CONTENT_API, {
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       });
       const data = await res.json();
       if (data.status && data.data) {
@@ -1044,9 +1066,13 @@ function AppContent() {
       }
 
       // Backend API orqali tasdiqlash
+      const token = localStorage.getItem("auth-token");
       const res = await fetch(`${CONTENT_API}/${planId}/approve`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           telegramChannelId,
           scheduledPosts: plan.scheduledPosts,
@@ -1222,14 +1248,27 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
          * If backend doesn't return multi-variant data yet, generate mock variants
          * from the existing creative/hooks response for UI demo.
          */
-        const langLabel = tgAdsLang === "uz" ? "O'zbek" : tgAdsLang === "en" ? "English" : "Русский";
+        const langLabel =
+          tgAdsLang === "uz"
+            ? "O'zbek"
+            : tgAdsLang === "en"
+              ? "English"
+              : "Русский";
         const textVars: string[] = result.textVariants || [
-          result.creative?.substring(0, 160) || `${langLabel}: ${adsInput.substring(0, 120)}... 🔥`,
-          ...(result.hooks || []).slice(0, 4).map((h: string) => h.substring(0, 160)),
+          result.creative?.substring(0, 160) ||
+            `${langLabel}: ${adsInput.substring(0, 120)}... 🔥`,
+          ...(result.hooks || [])
+            .slice(0, 4)
+            .map((h: string) => h.substring(0, 160)),
         ];
         // Ensure exactly 5
-        while (textVars.length < 5) textVars.push(`${langLabel} variant ${textVars.length + 1}: ${adsInput.substring(0, 100)}`);
-        setTgTextVariants(textVars.slice(0, 5).map((t: string) => t.substring(0, 160)));
+        while (textVars.length < 5)
+          textVars.push(
+            `${langLabel} variant ${textVars.length + 1}: ${adsInput.substring(0, 100)}`,
+          );
+        setTgTextVariants(
+          textVars.slice(0, 5).map((t: string) => t.substring(0, 160)),
+        );
 
         const imgVars: string[] = result.imageVariants || [
           `https://placehold.co/800x450/f97316/white?text=TG+Ad+1`,
@@ -1242,16 +1281,32 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
          * Meta Ads: Backend should return { creative, hooks, ctas, metaImages?, metaTexts? }
          * Mock multi-format data if not present.
          */
-        setMetaImages(result.metaImages || [
-          { url: "https://placehold.co/600x600/f97316/white?text=1:1+Square", ratio: "1:1", label: "Kvadrat (1:1)" },
-          { url: "https://placehold.co/800x450/1e293b/white?text=16:9+Landscape", ratio: "16:9", label: "Landshaft (16:9)" },
-          { url: "https://placehold.co/450x800/8b5cf6/white?text=9:16+Story", ratio: "9:16", label: "Story (9:16)" },
-        ]);
-        setMetaTexts(result.metaTexts || {
-          headline: result.hooks?.[0] || "Sarlavha matni",
-          primary: result.creative || "Asosiy reklama matni",
-          cta: result.ctas?.[0] || "Batafsil ma'lumot",
-        });
+        setMetaImages(
+          result.metaImages || [
+            {
+              url: "https://placehold.co/600x600/f97316/white?text=1:1+Square",
+              ratio: "1:1",
+              label: "Kvadrat (1:1)",
+            },
+            {
+              url: "https://placehold.co/800x450/1e293b/white?text=16:9+Landscape",
+              ratio: "16:9",
+              label: "Landshaft (16:9)",
+            },
+            {
+              url: "https://placehold.co/450x800/8b5cf6/white?text=9:16+Story",
+              ratio: "9:16",
+              label: "Story (9:16)",
+            },
+          ],
+        );
+        setMetaTexts(
+          result.metaTexts || {
+            headline: result.hooks?.[0] || "Sarlavha matni",
+            primary: result.creative || "Asosiy reklama matni",
+            cta: result.ctas?.[0] || "Batafsil ma'lumot",
+          },
+        );
       }
     } catch (error) {
       console.error("Ads AI error:", error);
@@ -4017,13 +4072,15 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                   {adsPlatform === "tg" && (
                     <div className="flex items-center gap-3">
                       <Languages size={16} className="text-slate-400" />
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Til:</span>
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        Til:
+                      </span>
                       <div className="flex bg-slate-100 p-1 rounded-lg">
-                        {([
+                        {[
                           { key: "uz" as const, label: "O'zbek" },
                           { key: "en" as const, label: "Inglizcha" },
                           { key: "ru" as const, label: "Ruscha" },
-                        ]).map((lang) => (
+                        ].map((lang) => (
                           <button
                             key={lang.key}
                             onClick={() => setTgAdsLang(lang.key)}
@@ -4039,7 +4096,9 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         ))}
                       </div>
                       {tgAdsLang === "uz" && (
-                        <span className="text-[10px] text-orange-500 font-semibold">Lotin yozuvida</span>
+                        <span className="text-[10px] text-orange-500 font-semibold">
+                          Lotin yozuvida
+                        </span>
                       )}
                     </div>
                   )}
@@ -4054,7 +4113,11 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         <textarea
                           value={adsInput}
                           onChange={(e) => {
-                            if (adsPlatform === "tg" && e.target.value.length > 160) return;
+                            if (
+                              adsPlatform === "tg" &&
+                              e.target.value.length > 160
+                            )
+                              return;
                             setAdsInput(e.target.value);
                           }}
                           maxLength={adsPlatform === "tg" ? 160 : undefined}
@@ -4067,10 +4130,16 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         />
                         {adsPlatform === "tg" && (
                           <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
-                            <span className={cn(
-                              "text-xs font-bold tabular-nums",
-                              adsInput.length > 140 ? "text-red-500" : adsInput.length > 100 ? "text-orange-500" : "text-slate-400",
-                            )}>
+                            <span
+                              className={cn(
+                                "text-xs font-bold tabular-nums",
+                                adsInput.length > 140
+                                  ? "text-red-500"
+                                  : adsInput.length > 100
+                                    ? "text-orange-500"
+                                    : "text-slate-400",
+                              )}
+                            >
                               {adsInput.length}
                             </span>
                             <span className="text-xs text-slate-300">/160</span>
@@ -4105,7 +4174,9 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                             <Layout size={14} /> Kreativ G'oya
                           </h4>
-                          <p className="text-slate-700 text-sm leading-relaxed">{adsResult.creative}</p>
+                          <p className="text-slate-700 text-sm leading-relaxed">
+                            {adsResult.creative}
+                          </p>
                         </div>
                         <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
                           <h4 className="text-xs font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -4113,8 +4184,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           </h4>
                           <ul className="space-y-2">
                             {adsResult.hooks.map((hook: string, i: number) => (
-                              <li key={i} className="flex gap-2 text-slate-700 text-sm">
-                                <span className="text-orange-500 font-bold">{i + 1}.</span>
+                              <li
+                                key={i}
+                                className="flex gap-2 text-slate-700 text-sm"
+                              >
+                                <span className="text-orange-500 font-bold">
+                                  {i + 1}.
+                                </span>
                                 {hook}
                               </li>
                             ))}
@@ -4126,8 +4202,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           </h4>
                           <ul className="space-y-2">
                             {adsResult.ctas.map((cta: string, i: number) => (
-                              <li key={i} className="flex gap-2 text-slate-700 text-sm">
-                                <span className="text-blue-500 font-bold">{i + 1}.</span>
+                              <li
+                                key={i}
+                                className="flex gap-2 text-slate-700 text-sm"
+                              >
+                                <span className="text-blue-500 font-bold">
+                                  {i + 1}.
+                                </span>
                                 {cta}
                               </li>
                             ))}
@@ -4144,7 +4225,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         </h4>
                         {tgSelectedText !== null && (
                           <span className="text-xs font-bold text-green-600 flex items-center gap-1">
-                            <Check size={12} /> Variant {tgSelectedText + 1} tanlandi
+                            <Check size={12} /> Variant {tgSelectedText + 1}{" "}
+                            tanlandi
                           </span>
                         )}
                       </div>
@@ -4161,15 +4243,21 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                             )}
                           >
                             <div className="flex items-start justify-between gap-2 mb-2">
-                              <span className="text-[10px] font-black text-slate-400 uppercase">Variant {i + 1}</span>
+                              <span className="text-[10px] font-black text-slate-400 uppercase">
+                                Variant {i + 1}
+                              </span>
                               {tgSelectedText === i && (
                                 <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center shrink-0">
                                   <Check size={12} className="text-white" />
                                 </div>
                               )}
                             </div>
-                            <p className="text-slate-700 leading-relaxed">{text}</p>
-                            <p className="text-[10px] text-slate-400 mt-2 tabular-nums">{text.length}/160 belgi</p>
+                            <p className="text-slate-700 leading-relaxed">
+                              {text}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-2 tabular-nums">
+                              {text.length}/160 belgi
+                            </p>
                           </button>
                         ))}
                       </div>
@@ -4179,11 +4267,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                          <Image size={14} /> Rasm variantlari (16:9) — tanlang (1 ta)
+                          <Image size={14} /> Rasm variantlari (16:9) — tanlang
+                          (1 ta)
                         </h4>
                         {tgSelectedImage !== null && (
                           <span className="text-xs font-bold text-green-600 flex items-center gap-1">
-                            <Check size={12} /> Rasm {tgSelectedImage + 1} tanlandi
+                            <Check size={12} /> Rasm {tgSelectedImage + 1}{" "}
+                            tanlandi
                           </span>
                         )}
                       </div>
@@ -4212,8 +4302,12 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                               )}
                             </div>
                             <div className="p-3 bg-white">
-                              <p className="text-xs font-bold text-slate-500">Rasm {i + 1}</p>
-                              <p className="text-[10px] text-slate-400">16:9 format</p>
+                              <p className="text-xs font-bold text-slate-500">
+                                Rasm {i + 1}
+                              </p>
+                              <p className="text-[10px] text-slate-400">
+                                16:9 format
+                              </p>
                             </div>
                           </button>
                         ))}
@@ -4221,40 +4315,55 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                     </div>
 
                     {/* Selection Summary */}
-                    <div className={cn(
-                      "p-5 rounded-2xl border text-sm",
-                      tgSelectedText !== null && tgSelectedImage !== null
-                        ? "bg-green-50 border-green-200"
-                        : "bg-slate-50 border-slate-100",
-                    )}>
+                    <div
+                      className={cn(
+                        "p-5 rounded-2xl border text-sm",
+                        tgSelectedText !== null && tgSelectedImage !== null
+                          ? "bg-green-50 border-green-200"
+                          : "bg-slate-50 border-slate-100",
+                      )}
+                    >
                       <div className="flex items-center justify-between flex-wrap gap-4">
                         <div className="flex items-center gap-4">
-                          <div className={cn(
-                            "w-8 h-8 rounded-full flex items-center justify-center text-white",
-                            tgSelectedText !== null ? "bg-green-500" : "bg-slate-300",
-                          )}>
+                          <div
+                            className={cn(
+                              "w-8 h-8 rounded-full flex items-center justify-center text-white",
+                              tgSelectedText !== null
+                                ? "bg-green-500"
+                                : "bg-slate-300",
+                            )}
+                          >
                             <Type size={14} />
                           </div>
                           <span className="text-slate-600 font-medium">
-                            {tgSelectedText !== null ? `Matn variant ${tgSelectedText + 1} tanlandi` : "Matn tanlanmagan"}
+                            {tgSelectedText !== null
+                              ? `Matn variant ${tgSelectedText + 1} tanlandi`
+                              : "Matn tanlanmagan"}
                           </span>
                           <div className="w-px h-6 bg-slate-200" />
-                          <div className={cn(
-                            "w-8 h-8 rounded-full flex items-center justify-center text-white",
-                            tgSelectedImage !== null ? "bg-green-500" : "bg-slate-300",
-                          )}>
+                          <div
+                            className={cn(
+                              "w-8 h-8 rounded-full flex items-center justify-center text-white",
+                              tgSelectedImage !== null
+                                ? "bg-green-500"
+                                : "bg-slate-300",
+                            )}
+                          >
                             <Image size={14} />
                           </div>
                           <span className="text-slate-600 font-medium">
-                            {tgSelectedImage !== null ? `Rasm variant ${tgSelectedImage + 1} tanlandi` : "Rasm tanlanmagan"}
+                            {tgSelectedImage !== null
+                              ? `Rasm variant ${tgSelectedImage + 1} tanlandi`
+                              : "Rasm tanlanmagan"}
                           </span>
                         </div>
-                        {tgSelectedText !== null && tgSelectedImage !== null && (
-                          <button className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
-                            <Check size={16} />
-                            Tayyor — Davom etish
-                          </button>
-                        )}
+                        {tgSelectedText !== null &&
+                          tgSelectedImage !== null && (
+                            <button className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
+                              <Check size={16} />
+                              Tayyor — Davom etish
+                            </button>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -4270,7 +4379,9 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                             <Layout size={14} /> Kreativ G'oya
                           </h4>
-                          <p className="text-slate-700 text-sm leading-relaxed">{adsResult.creative}</p>
+                          <p className="text-slate-700 text-sm leading-relaxed">
+                            {adsResult.creative}
+                          </p>
                         </div>
                         <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
                           <h4 className="text-xs font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -4278,8 +4389,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           </h4>
                           <ul className="space-y-2">
                             {adsResult.hooks.map((hook: string, i: number) => (
-                              <li key={i} className="flex gap-2 text-slate-700 text-sm">
-                                <span className="text-orange-500 font-bold">{i + 1}.</span>
+                              <li
+                                key={i}
+                                className="flex gap-2 text-slate-700 text-sm"
+                              >
+                                <span className="text-orange-500 font-bold">
+                                  {i + 1}.
+                                </span>
                                 {hook}
                               </li>
                             ))}
@@ -4291,8 +4407,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           </h4>
                           <ul className="space-y-2">
                             {adsResult.ctas.map((cta: string, i: number) => (
-                              <li key={i} className="flex gap-2 text-slate-700 text-sm">
-                                <span className="text-blue-500 font-bold">{i + 1}.</span>
+                              <li
+                                key={i}
+                                className="flex gap-2 text-slate-700 text-sm"
+                              >
+                                <span className="text-blue-500 font-bold">
+                                  {i + 1}.
+                                </span>
                                 {cta}
                               </li>
                             ))}
@@ -4308,16 +4429,28 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="p-5 bg-orange-50 rounded-xl border border-orange-100 space-y-2">
-                          <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Sarlavha (Headline)</p>
-                          <p className="text-slate-900 font-bold text-lg leading-snug">{metaTexts.headline}</p>
+                          <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">
+                            Sarlavha (Headline)
+                          </p>
+                          <p className="text-slate-900 font-bold text-lg leading-snug">
+                            {metaTexts.headline}
+                          </p>
                         </div>
                         <div className="p-5 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Asosiy matn (Primary)</p>
-                          <p className="text-slate-700 text-sm leading-relaxed">{metaTexts.primary}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            Asosiy matn (Primary)
+                          </p>
+                          <p className="text-slate-700 text-sm leading-relaxed">
+                            {metaTexts.primary}
+                          </p>
                         </div>
                         <div className="p-5 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
-                          <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Harakatga chaqiriq (CTA)</p>
-                          <p className="text-slate-900 font-bold">{metaTexts.cta}</p>
+                          <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">
+                            Harakatga chaqiriq (CTA)
+                          </p>
+                          <p className="text-slate-900 font-bold">
+                            {metaTexts.cta}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -4329,26 +4462,37 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
                         {metaImages.map((img, i) => (
-                          <div key={i} className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50">
-                            <div className={cn(
-                              "relative bg-slate-200",
-                              img.ratio === "1:1" && "aspect-square",
-                              img.ratio === "16:9" && "aspect-video",
-                              img.ratio === "9:16" && "aspect-[9/16]",
-                            )}>
+                          <div
+                            key={i}
+                            className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50"
+                          >
+                            <div
+                              className={cn(
+                                "relative bg-slate-200",
+                                img.ratio === "1:1" && "aspect-square",
+                                img.ratio === "16:9" && "aspect-video",
+                                img.ratio === "9:16" && "aspect-[9/16]",
+                              )}
+                            >
                               <img
                                 src={img.url}
                                 alt={img.label}
                                 className="w-full h-full object-cover"
                               />
                               <div className="absolute top-2 left-2 px-2 py-1 bg-white/90 backdrop-blur rounded-md">
-                                <span className="text-[10px] font-bold text-slate-600">{img.ratio}</span>
+                                <span className="text-[10px] font-bold text-slate-600">
+                                  {img.ratio}
+                                </span>
                               </div>
                             </div>
                             <div className="p-3 bg-white flex items-center justify-between">
                               <div>
-                                <p className="text-xs font-bold text-slate-700">{img.label}</p>
-                                <p className="text-[10px] text-slate-400">{img.ratio} nisbat</p>
+                                <p className="text-xs font-bold text-slate-700">
+                                  {img.label}
+                                </p>
+                                <p className="text-[10px] text-slate-400">
+                                  {img.ratio} nisbat
+                                </p>
                               </div>
                               <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
                                 <Check size={12} className="text-green-600" />
@@ -4359,7 +4503,8 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                       </div>
                       <p className="text-xs text-slate-400 flex items-center gap-1.5">
                         <Check size={12} className="text-green-500" />
-                        Barcha formatlar avtomatik tanlangan — tayyor eksport qilishga
+                        Barcha formatlar avtomatik tanlangan — tayyor eksport
+                        qilishga
                       </p>
                     </div>
 
@@ -4370,8 +4515,13 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                           <Check size={18} className="text-white" />
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 text-sm">Meta Ads to'plami tayyor</p>
-                          <p className="text-xs text-slate-500">3 rasm formati + 3 matn turi — to'liq kreativ to'plam</p>
+                          <p className="font-bold text-slate-900 text-sm">
+                            Meta Ads to'plami tayyor
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            3 rasm formati + 3 matn turi — to'liq kreativ
+                            to'plam
+                          </p>
                         </div>
                       </div>
                       <button className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
