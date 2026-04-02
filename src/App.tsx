@@ -72,6 +72,10 @@ import {
   Target,
   MousePointerClick,
   TrendingDown,
+  Image,
+  Type,
+  Languages,
+  Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Markdown from "react-markdown";
@@ -321,11 +325,12 @@ const aiApi = {
     if (!data.status) throw new Error(data.message);
     return data.data.text;
   },
-  generateAds: async (description: string, platform: string) => {
+  generateAds: async (description: string, platform: string, language?: string) => {
+    // Extended: sends language for TG Ads (uz, en, ru)
     const res = await fetch(`${API_BASE}/generate-ads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ description, platform }),
+      body: JSON.stringify({ description, platform, ...(language && { language }) }),
     });
     const data = await res.json();
     if (!data.status) throw new Error(data.message);
@@ -481,6 +486,17 @@ function AppContent() {
     ctas: string[];
   } | null>(null);
   const [adsLoading, setAdsLoading] = useState(false);
+
+  // TG Ads Extended State
+  const [tgAdsLang, setTgAdsLang] = useState<"uz" | "en" | "ru">("uz");
+  const [tgTextVariants, setTgTextVariants] = useState<string[]>([]);
+  const [tgImageVariants, setTgImageVariants] = useState<string[]>([]);
+  const [tgSelectedText, setTgSelectedText] = useState<number | null>(null);
+  const [tgSelectedImage, setTgSelectedImage] = useState<number | null>(null);
+
+  // Meta Ads Extended State
+  const [metaImages, setMetaImages] = useState<{ url: string; ratio: string; label: string }[]>([]);
+  const [metaTexts, setMetaTexts] = useState<{ headline: string; primary: string; cta: string } | null>(null);
 
   // Market Analysis State
   const [marketAnalysisInput, setMarketAnalysisInput] = useState("");
@@ -1180,9 +1196,60 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
   const handleGenerateAds = async () => {
     if (!adsInput.trim()) return;
     setAdsLoading(true);
+    // Reset previous results
+    setTgTextVariants([]);
+    setTgImageVariants([]);
+    setTgSelectedText(null);
+    setTgSelectedImage(null);
+    setMetaImages([]);
+    setMetaTexts(null);
+
     try {
-      const result = await aiApi.generateAds(adsInput, adsPlatform);
+      const result = await aiApi.generateAds(
+        adsInput,
+        adsPlatform,
+        adsPlatform === "tg" ? tgAdsLang : undefined,
+      );
+      // Set legacy result for backward compat
       setAdsResult(result);
+
+      if (adsPlatform === "tg") {
+        /**
+         * TG Ads: Backend should return { creative, hooks, ctas, textVariants?, imageVariants? }
+         * If backend doesn't return multi-variant data yet, generate mock variants
+         * from the existing creative/hooks response for UI demo.
+         */
+        const langLabel = tgAdsLang === "uz" ? "O'zbek" : tgAdsLang === "en" ? "English" : "Русский";
+        const textVars: string[] = result.textVariants || [
+          result.creative?.substring(0, 160) || `${langLabel}: ${adsInput.substring(0, 120)}... 🔥`,
+          ...(result.hooks || []).slice(0, 4).map((h: string) => h.substring(0, 160)),
+        ];
+        // Ensure exactly 5
+        while (textVars.length < 5) textVars.push(`${langLabel} variant ${textVars.length + 1}: ${adsInput.substring(0, 100)}`);
+        setTgTextVariants(textVars.slice(0, 5).map((t: string) => t.substring(0, 160)));
+
+        const imgVars: string[] = result.imageVariants || [
+          `https://placehold.co/800x450/f97316/white?text=TG+Ad+1`,
+          `https://placehold.co/800x450/1e293b/white?text=TG+Ad+2`,
+          `https://placehold.co/800x450/3b82f6/white?text=TG+Ad+3`,
+        ];
+        setTgImageVariants(imgVars.slice(0, 3));
+      } else {
+        /**
+         * Meta Ads: Backend should return { creative, hooks, ctas, metaImages?, metaTexts? }
+         * Mock multi-format data if not present.
+         */
+        setMetaImages(result.metaImages || [
+          { url: "https://placehold.co/600x600/f97316/white?text=1:1+Square", ratio: "1:1", label: "Kvadrat (1:1)" },
+          { url: "https://placehold.co/800x450/1e293b/white?text=16:9+Landscape", ratio: "16:9", label: "Landshaft (16:9)" },
+          { url: "https://placehold.co/450x800/8b5cf6/white?text=9:16+Story", ratio: "9:16", label: "Story (9:16)" },
+        ]);
+        setMetaTexts(result.metaTexts || {
+          headline: result.hooks?.[0] || "Sarlavha matni",
+          primary: result.creative || "Asosiy reklama matni",
+          cta: result.ctas?.[0] || "Batafsil ma'lumot",
+        });
+      }
     } catch (error) {
       console.error("Ads AI error:", error);
     } finally {
@@ -3895,14 +3962,15 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-8 pb-12"
               >
-                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-8">
+                {/* Header + Platform Toggle */}
+                <div className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm space-y-8">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
                       <h3 className="text-2xl font-black text-slate-900 tracking-tight">
                         Reklama Avtomatizatsiyasi (AI)
                       </h3>
-                      <p className="text-slate-500">
-                        TG Ads va Instagram Ads uchun kreativlar yarating
+                      <p className="text-slate-500 text-sm">
+                        TG Ads va Meta Ads uchun kreativlar yarating
                       </p>
                     </div>
                     <div className="flex items-center gap-4 flex-wrap">
@@ -3910,7 +3978,7 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         href="https://adsshop.org/channels"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-6 py-2 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold hover:bg-blue-100 transition-all border border-blue-100 shadow-sm"
+                        className="flex items-center gap-2 px-5 py-2 bg-blue-50 text-blue-600 rounded-xl text-sm font-bold hover:bg-blue-100 transition-colors border border-blue-100"
                       >
                         <Send size={16} />
                         Telegram Ads
@@ -3919,7 +3987,7 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         <button
                           onClick={() => setAdsPlatform("tg")}
                           className={cn(
-                            "px-6 py-2 rounded-lg text-sm font-bold transition-all",
+                            "px-6 py-2 rounded-lg text-sm font-bold transition-colors",
                             adsPlatform === "tg"
                               ? "bg-white text-slate-900 shadow-sm"
                               : "text-slate-500 hover:text-slate-700",
@@ -3930,101 +3998,386 @@ Foydalanuvchidan quyidagi ma'lumotlarni **bosqichma-bosqich** so'ra. Barchasini 
                         <button
                           onClick={() => setAdsPlatform("instagram")}
                           className={cn(
-                            "px-6 py-2 rounded-lg text-sm font-bold transition-all",
+                            "px-6 py-2 rounded-lg text-sm font-bold transition-colors",
                             adsPlatform === "instagram"
                               ? "bg-white text-slate-900 shadow-sm"
                               : "text-slate-500 hover:text-slate-700",
                           )}
                         >
-                          Insta Ads (AI)
+                          Meta Ads (AI)
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
+                  {/* TG Ads: Language Selector */}
+                  {adsPlatform === "tg" && (
+                    <div className="flex items-center gap-3">
+                      <Languages size={16} className="text-slate-400" />
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Til:</span>
+                      <div className="flex bg-slate-100 p-1 rounded-lg">
+                        {([
+                          { key: "uz" as const, label: "O'zbek" },
+                          { key: "en" as const, label: "Inglizcha" },
+                          { key: "ru" as const, label: "Ruscha" },
+                        ]).map((lang) => (
+                          <button
+                            key={lang.key}
+                            onClick={() => setTgAdsLang(lang.key)}
+                            className={cn(
+                              "px-4 py-1.5 rounded-md text-xs font-bold transition-colors",
+                              tgAdsLang === lang.key
+                                ? "bg-white text-slate-900 shadow-sm"
+                                : "text-slate-500 hover:text-slate-700",
+                            )}
+                          >
+                            {lang.label}
+                          </button>
+                        ))}
+                      </div>
+                      {tgAdsLang === "uz" && (
+                        <span className="text-[10px] text-orange-500 font-semibold">Lotin yozuvida</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Input + Character Counter + Generate */}
+                  <div className="space-y-2">
                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest">
                       Mahsulot yoki xizmat haqida qisqacha
                     </label>
                     <div className="flex gap-4">
-                      <textarea
-                        value={adsInput}
-                        onChange={(e) => setAdsInput(e.target.value)}
-                        placeholder="Masalan: Toshkentda yangi ochilgan milliy taomlar restorani uchun reklama..."
-                        className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 min-h-[100px]"
-                      />
+                      <div className="flex-1 relative">
+                        <textarea
+                          value={adsInput}
+                          onChange={(e) => {
+                            if (adsPlatform === "tg" && e.target.value.length > 160) return;
+                            setAdsInput(e.target.value);
+                          }}
+                          maxLength={adsPlatform === "tg" ? 160 : undefined}
+                          placeholder={
+                            adsPlatform === "tg"
+                              ? "Masalan: Toshkentda yangi ochilgan milliy taomlar restorani uchun reklama... (max 160 belgi)"
+                              : "Masalan: Toshkentda yangi ochilgan milliy taomlar restorani uchun reklama..."
+                          }
+                          className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 min-h-[100px] text-sm"
+                        />
+                        {adsPlatform === "tg" && (
+                          <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
+                            <span className={cn(
+                              "text-xs font-bold tabular-nums",
+                              adsInput.length > 140 ? "text-red-500" : adsInput.length > 100 ? "text-orange-500" : "text-slate-400",
+                            )}>
+                              {adsInput.length}
+                            </span>
+                            <span className="text-xs text-slate-300">/160</span>
+                          </div>
+                        )}
+                      </div>
                       <button
                         onClick={handleGenerateAds}
                         disabled={adsLoading || !adsInput.trim()}
-                        className="px-8 bg-orange-500 text-white rounded-2xl font-black hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 disabled:opacity-50 flex flex-col items-center justify-center gap-2"
+                        className="px-8 bg-orange-500 text-white rounded-2xl font-black hover:bg-orange-600 transition-colors disabled:opacity-50 flex flex-col items-center justify-center gap-2"
                       >
                         {adsLoading ? (
                           <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
                           <>
                             <Sparkles size={24} />
-                            <span>Yaratish</span>
+                            <span className="text-sm">Yaratish</span>
                           </>
                         )}
                       </button>
                     </div>
                   </div>
+                </div>
 
-                  {adsResult && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-8 border-t border-slate-50">
-                      <div className="lg:col-span-1 space-y-6">
-                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                          <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                {/* ===== TG ADS RESULTS ===== */}
+                {adsPlatform === "tg" && tgTextVariants.length > 0 && (
+                  <div className="space-y-6">
+                    {/* Legacy creative summary */}
+                    {adsResult && (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                          <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                             <Layout size={14} /> Kreativ G'oya
                           </h4>
-                          <p className="text-slate-700 leading-relaxed">
-                            {adsResult.creative}
-                          </p>
+                          <p className="text-slate-700 text-sm leading-relaxed">{adsResult.creative}</p>
                         </div>
-                      </div>
-                      <div className="lg:col-span-1 space-y-6">
                         <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
-                          <h4 className="text-xs font-black text-orange-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <Zap size={14} /> Hook'lar (Diqqatni tortish)
+                          <h4 className="text-xs font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <Zap size={14} /> Hook'lar
                           </h4>
-                          <ul className="space-y-3">
+                          <ul className="space-y-2">
                             {adsResult.hooks.map((hook: string, i: number) => (
-                              <li
-                                key={i}
-                                className="flex gap-3 text-slate-700 text-sm"
-                              >
-                                <span className="text-orange-500 font-bold">
-                                  {i + 1}.
-                                </span>
+                              <li key={i} className="flex gap-2 text-slate-700 text-sm">
+                                <span className="text-orange-500 font-bold">{i + 1}.</span>
                                 {hook}
                               </li>
                             ))}
                           </ul>
                         </div>
-                      </div>
-                      <div className="lg:col-span-1 space-y-6">
                         <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
-                          <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <Send size={14} /> CTA (Harakatga chaqiriq)
+                          <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <Send size={14} /> CTA
                           </h4>
-                          <ul className="space-y-3">
+                          <ul className="space-y-2">
                             {adsResult.ctas.map((cta: string, i: number) => (
-                              <li
-                                key={i}
-                                className="flex gap-3 text-slate-700 text-sm"
-                              >
-                                <span className="text-blue-500 font-bold">
-                                  {i + 1}.
-                                </span>
+                              <li key={i} className="flex gap-2 text-slate-700 text-sm">
+                                <span className="text-blue-500 font-bold">{i + 1}.</span>
                                 {cta}
                               </li>
                             ))}
                           </ul>
                         </div>
                       </div>
+                    )}
+
+                    {/* Text Variants (5) */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                          <Type size={14} /> Matn variantlari — tanlang (1 ta)
+                        </h4>
+                        {tgSelectedText !== null && (
+                          <span className="text-xs font-bold text-green-600 flex items-center gap-1">
+                            <Check size={12} /> Variant {tgSelectedText + 1} tanlandi
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {tgTextVariants.map((text, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setTgSelectedText(i)}
+                            className={cn(
+                              "p-4 rounded-xl border-2 text-left text-sm transition-all",
+                              tgSelectedText === i
+                                ? "border-orange-500 bg-orange-50 ring-2 ring-orange-200"
+                                : "border-slate-100 bg-slate-50 hover:border-slate-300",
+                            )}
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <span className="text-[10px] font-black text-slate-400 uppercase">Variant {i + 1}</span>
+                              {tgSelectedText === i && (
+                                <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center shrink-0">
+                                  <Check size={12} className="text-white" />
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-slate-700 leading-relaxed">{text}</p>
+                            <p className="text-[10px] text-slate-400 mt-2 tabular-nums">{text.length}/160 belgi</p>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  )}
-                </div>
+
+                    {/* Image Variants (3) — 16:9 */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                          <Image size={14} /> Rasm variantlari (16:9) — tanlang (1 ta)
+                        </h4>
+                        {tgSelectedImage !== null && (
+                          <span className="text-xs font-bold text-green-600 flex items-center gap-1">
+                            <Check size={12} /> Rasm {tgSelectedImage + 1} tanlandi
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {tgImageVariants.map((url, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setTgSelectedImage(i)}
+                            className={cn(
+                              "rounded-xl border-2 overflow-hidden transition-all group relative",
+                              tgSelectedImage === i
+                                ? "border-orange-500 ring-2 ring-orange-200"
+                                : "border-slate-100 hover:border-slate-300",
+                            )}
+                          >
+                            <div className="aspect-video bg-slate-100 relative">
+                              <img
+                                src={url}
+                                alt={`TG reklama rasm ${i + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                              {tgSelectedImage === i && (
+                                <div className="absolute top-2 right-2 w-7 h-7 bg-orange-500 rounded-full flex items-center justify-center shadow-lg">
+                                  <Check size={14} className="text-white" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-3 bg-white">
+                              <p className="text-xs font-bold text-slate-500">Rasm {i + 1}</p>
+                              <p className="text-[10px] text-slate-400">16:9 format</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Selection Summary */}
+                    <div className={cn(
+                      "p-5 rounded-2xl border text-sm",
+                      tgSelectedText !== null && tgSelectedImage !== null
+                        ? "bg-green-50 border-green-200"
+                        : "bg-slate-50 border-slate-100",
+                    )}>
+                      <div className="flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center text-white",
+                            tgSelectedText !== null ? "bg-green-500" : "bg-slate-300",
+                          )}>
+                            <Type size={14} />
+                          </div>
+                          <span className="text-slate-600 font-medium">
+                            {tgSelectedText !== null ? `Matn variant ${tgSelectedText + 1} tanlandi` : "Matn tanlanmagan"}
+                          </span>
+                          <div className="w-px h-6 bg-slate-200" />
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center text-white",
+                            tgSelectedImage !== null ? "bg-green-500" : "bg-slate-300",
+                          )}>
+                            <Image size={14} />
+                          </div>
+                          <span className="text-slate-600 font-medium">
+                            {tgSelectedImage !== null ? `Rasm variant ${tgSelectedImage + 1} tanlandi` : "Rasm tanlanmagan"}
+                          </span>
+                        </div>
+                        {tgSelectedText !== null && tgSelectedImage !== null && (
+                          <button className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
+                            <Check size={16} />
+                            Tayyor — Davom etish
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== META ADS RESULTS ===== */}
+                {adsPlatform === "instagram" && metaTexts && (
+                  <div className="space-y-6">
+                    {/* Legacy creative summary */}
+                    {adsResult && (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                          <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <Layout size={14} /> Kreativ G'oya
+                          </h4>
+                          <p className="text-slate-700 text-sm leading-relaxed">{adsResult.creative}</p>
+                        </div>
+                        <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100">
+                          <h4 className="text-xs font-black text-orange-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <Zap size={14} /> Hook'lar
+                          </h4>
+                          <ul className="space-y-2">
+                            {adsResult.hooks.map((hook: string, i: number) => (
+                              <li key={i} className="flex gap-2 text-slate-700 text-sm">
+                                <span className="text-orange-500 font-bold">{i + 1}.</span>
+                                {hook}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                          <h4 className="text-xs font-black text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <Send size={14} /> CTA
+                          </h4>
+                          <ul className="space-y-2">
+                            {adsResult.ctas.map((cta: string, i: number) => (
+                              <li key={i} className="flex gap-2 text-slate-700 text-sm">
+                                <span className="text-blue-500 font-bold">{i + 1}.</span>
+                                {cta}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Meta Text Fields: Headline, Primary, CTA */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Type size={14} /> Reklama matnlari
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-5 bg-orange-50 rounded-xl border border-orange-100 space-y-2">
+                          <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Sarlavha (Headline)</p>
+                          <p className="text-slate-900 font-bold text-lg leading-snug">{metaTexts.headline}</p>
+                        </div>
+                        <div className="p-5 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Asosiy matn (Primary)</p>
+                          <p className="text-slate-700 text-sm leading-relaxed">{metaTexts.primary}</p>
+                        </div>
+                        <div className="p-5 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
+                          <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Harakatga chaqiriq (CTA)</p>
+                          <p className="text-slate-900 font-bold">{metaTexts.cta}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Meta Images: 1:1, 16:9, 9:16 */}
+                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Image size={14} /> Reklama rasmlari (3 format)
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
+                        {metaImages.map((img, i) => (
+                          <div key={i} className="rounded-xl border border-slate-100 overflow-hidden bg-slate-50">
+                            <div className={cn(
+                              "relative bg-slate-200",
+                              img.ratio === "1:1" && "aspect-square",
+                              img.ratio === "16:9" && "aspect-video",
+                              img.ratio === "9:16" && "aspect-[9/16]",
+                            )}>
+                              <img
+                                src={img.url}
+                                alt={img.label}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute top-2 left-2 px-2 py-1 bg-white/90 backdrop-blur rounded-md">
+                                <span className="text-[10px] font-bold text-slate-600">{img.ratio}</span>
+                              </div>
+                            </div>
+                            <div className="p-3 bg-white flex items-center justify-between">
+                              <div>
+                                <p className="text-xs font-bold text-slate-700">{img.label}</p>
+                                <p className="text-[10px] text-slate-400">{img.ratio} nisbat</p>
+                              </div>
+                              <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                <Check size={12} className="text-green-600" />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                        <Check size={12} className="text-green-500" />
+                        Barcha formatlar avtomatik tanlangan — tayyor eksport qilishga
+                      </p>
+                    </div>
+
+                    {/* Export Summary */}
+                    <div className="p-5 bg-green-50 rounded-2xl border border-green-200 flex items-center justify-between flex-wrap gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                          <Check size={18} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 text-sm">Meta Ads to'plami tayyor</p>
+                          <p className="text-xs text-slate-500">3 rasm formati + 3 matn turi — to'liq kreativ to'plam</p>
+                        </div>
+                      </div>
+                      <button className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
+                        <Download size={16} />
+                        Eksport qilish
+                      </button>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 

@@ -18,10 +18,10 @@ export const Sidebar = ({ activeTab, onTabChange }: { activeTab: string, onTabCh
     { id: 'business', icon: Rocket, label: 'Biznes Boshlash' },
     { id: 'ads', icon: Megaphone, label: 'Reklama (AI)' },
     { id: 'content', icon: FileText, label: 'Kontent Markazi' },
-    { id: 'website', icon: Globe, label: 'Sayt Yaratish' },
-    { id: 'crm', icon: Users, label: 'Lidlar (CRM)' },
     { id: 'automation', icon: Zap, label: 'Avtomatizatsiya' },
     { id: 'influencers', icon: UserCheck, label: 'Influencerlar' },
+    { id: 'website', icon: Globe, label: 'Sayt Yaratish' },
+    { id: 'crm', icon: Users, label: 'Lidlar (CRM)' },
     { id: 'analytics', icon: TrendingUp, label: 'Analitika' },
   ];
 
